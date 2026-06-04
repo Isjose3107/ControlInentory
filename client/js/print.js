@@ -613,6 +613,124 @@ export function imprimirDocumento(tipoDoc) {
             </div>
         `;
     }
+    else if (tipoDoc === 'RECIBO') {
+        if (!state.activeReceiptOC) {
+            alert('No hay una orden de compra activa para imprimir recibo.');
+            return;
+        }
+
+        const ocId = state.activeReceiptOC.consecutivo;
+        const fecha = document.getElementById('in-fecha') ? document.getElementById('in-fecha').value : new Date().toISOString().split('T')[0];
+        const factura = document.getElementById('in-factura') ? document.getElementById('in-factura').value.trim() : 'N/A';
+        const provNit = state.activeReceiptOC.proveedor_nit;
+        const provName = state.activeReceiptOC.proveedor_nombre || provNit || 'No especificado';
+
+        let tableRowsHTML = '';
+        state.activeReceiptOC.items.forEach((item, index) => {
+            const container = document.getElementById(`in-loc-container-${index}`);
+            if (!container) return;
+
+            const rows = container.querySelectorAll('.multi-loc-row');
+            let itemUbiQtyRows = '';
+
+            rows.forEach((rowDiv) => {
+                const qtyInput = rowDiv.querySelector('.in-qty-multi');
+                const rowId = qtyInput.getAttribute('data-row-id');
+                const cantidad = Number(qtyInput.value) || 0;
+                
+                const ubiEl = document.getElementById(`ubi-code-in-${index}-${rowId}`);
+                const ubicacion = ubiEl ? ubiEl.textContent.trim() : '';
+
+                if (cantidad > 0) {
+                    itemUbiQtyRows += `
+                        <div class="print-ubi-row" style="margin-bottom: 4px; display: flex; justify-content: space-between; border-bottom: 1px dotted #ccc; padding-bottom: 2px;">
+                            <span>📍 Ubicación: <strong>${ubicacion}</strong></span>
+                            <span>Cantidad: <strong>${cantidad} ${item.unidad_consumo || 'Und'}</strong></span>
+                        </div>
+                    `;
+                }
+            });
+
+            if (!itemUbiQtyRows) {
+                itemUbiQtyRows = `<span style="color:#d97706; font-style:italic;">Sin distribución / No recibido</span>`;
+            }
+
+            tableRowsHTML += `
+                <tr>
+                    <td style="text-align:center;">${index + 1}</td>
+                    <td><strong>${item.codigo}</strong></td>
+                    <td>
+                        <strong>${item.descripcion}</strong><br>
+                        <span style="font-size:8pt; color:#444;">Um. Compra: ${item.unidad_compra || 'Und'} | Um. Consumo: ${item.unidad_consumo || 'Und'}</span>
+                    </td>
+                    <td style="text-align:center; font-weight:bold;">${item.cantidad}</td>
+                    <td>
+                        <div style="padding: 4px 0;">
+                            ${itemUbiQtyRows}
+                        </div>
+                    </td>
+                    <td style="text-align:center; width:45px; font-size:12pt;">[  ]</td>
+                </tr>
+            `;
+        });
+
+        htmlContent = `
+            <div class="print-invoice">
+                <div class="print-header">
+                    <div class="print-logo-section">
+                        <h1>HABITAD WMS</h1>
+                        <p style="font-size: 8pt; margin: 2px 0;">Nit: 123.456.789-0</p>
+                        <p style="font-size: 8pt; margin: 2px 0;">Dirección: Zona Industrial Bodega 10</p>
+                    </div>
+                    <div class="print-doc-info">
+                        <h2>HOJA DE RUTA DE RECIBO (IN)</h2>
+                        <p style="font-size: 11pt; font-weight: bold; margin: 5px 0;">OC Asociada: ${ocId}</p>
+                        <p style="font-size: 8pt; margin: 2px 0;">Fecha Recibo: ${fecha}</p>
+                        <p style="font-size: 8pt; margin: 2px 0;">Ref. Factura: ${factura}</p>
+                    </div>
+                </div>
+                
+                <div class="print-details-grid">
+                    <div class="print-details-block" style="grid-column: span 2;">
+                        <h3>Detalles de Recepción</h3>
+                        <p><strong>Proveedor:</strong> ${provName} (NIT: ${provNit})</p>
+                        <p><strong>Operario / Auxiliar de Bodega:</strong> _____________________________________</p>
+                        <p style="color:#2563eb; font-weight:600; font-size:8.5pt; margin-top:5px;">
+                            👉 Instrucción: Ubique los productos físicamente en las posiciones indicadas a continuación y marque la casilla [✓] al terminar.
+                        </p>
+                    </div>
+                </div>
+                
+                <table class="print-table">
+                    <thead>
+                        <tr>
+                            <th style="width:5%; text-align:center;">Item</th>
+                            <th style="width:15%;">Código</th>
+                            <th style="width:35%;">Descripción del Producto</th>
+                            <th style="width:10%; text-align:center;">Cant. OC</th>
+                            <th style="width:30%;">Ubicaciones de Almacenamiento (IN)</th>
+                            <th style="width:5%; text-align:center;">Acom.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRowsHTML}
+                    </tbody>
+                </table>
+                
+                <div class="print-summary-section">
+                    <div class="print-observaciones" style="width:100%;">
+                        <strong>Notas Adicionales del Auxiliar:</strong>
+                        <p style="margin-top: 10px; border-bottom: 1px solid #aaa; height: 35px;"></p>
+                    </div>
+                </div>
+                
+                <div class="print-signatures">
+                    <div class="print-signature-line">Firma Auxiliar de Recibo</div>
+                    <div class="print-signature-line">Firma Supervisor Bodega</div>
+                </div>
+            </div>
+        `;
+    }
 
     printContainer.innerHTML = htmlContent;
 

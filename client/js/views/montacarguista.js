@@ -163,10 +163,17 @@ export function iniciarPickingDesdeMonta(remision) {
     }
 }
 
+export function imprimirConsolidadoMontacarguista() {
+    if (window.imprimirDocumento) {
+        window.imprimirDocumento('MONTA');
+    }
+}
+
 // Bind to window for global availability
 window.loadMontacarguistaConsolidado = loadMontacarguistaConsolidado;
 window.mostrarDesgloseFacturaMonta = mostrarDesgloseFacturaMonta;
 window.cerrarDesgloseFacturaMonta = cerrarDesgloseFacturaMonta;
 window.ejecutarDescensoMontacarguista = ejecutarDescensoMontacarguista;
 window.iniciarPickingDesdeMonta = iniciarPickingDesdeMonta;
+window.imprimirConsolidadoMontacarguista = imprimirConsolidadoMontacarguista;
 

@@ -314,6 +314,12 @@ export function imprimirReporteRecibo() {
     }
 }
 
+export function imprimirReciboTrabajo() {
+    if (window.imprimirDocumento) {
+        window.imprimirDocumento('RECIBO');
+    }
+}
+
 // Bind methods to window to support inline onclicks
 window.cargarOCParaRecibo = cargarOCParaRecibo;
 window.agregarFilaUbicacionRecibo = agregarFilaUbicacionRecibo;
@@ -323,3 +329,4 @@ window.limpiarFormRecibo = limpiarFormRecibo;
 window.guardarReciboIN = guardarReciboIN;
 window.cerrarReporteRecibo = cerrarReporteRecibo;
 window.imprimirReporteRecibo = imprimirReporteRecibo;
+window.imprimirReciboTrabajo = imprimirReciboTrabajo;

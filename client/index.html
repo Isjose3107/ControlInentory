@@ -30,32 +30,34 @@
                 <a href="#" class="nav-item active" data-view="dashboard">
                     Dashboard
                 </a>
-                <div class="nav-section-title">Operaciones Bodega</div>
-                <a href="#" class="nav-item" data-view="montacarguista">
-                    Montacarguista
+                
+                <div class="nav-section-title">OUT (Salidas)</div>
+                <a href="#" class="nav-item" data-view="ventas">
+                    Ventas y Remisiones
                 </a>
                 <a href="#" class="nav-item" data-view="picking">
                     Picking / Alistamiento
                 </a>
-                <a href="#" class="nav-item" data-view="inventario">
-                    Inventario (Ubicaciones)
+                <a href="#" class="nav-item" data-view="montacarguista">
+                    Montacarguista
+                </a>
+
+                <div class="nav-section-title">IN (Entradas)</div>
+                <a href="#" class="nav-item" data-view="compras">
+                    Órdenes de Compra (OC)
                 </a>
                 <a href="#" class="nav-item" data-view="entradas">
                     Recibo (IN)
                 </a>
-                <a href="#" class="nav-item" data-view="salidas">
-                    Despacho (OUT)
+
+                <div class="nav-section-title">Inventario</div>
+                <a href="#" class="nav-item" data-view="inventario">
+                    Inventario (Ubicaciones)
                 </a>
-                <div class="nav-section-title">Documentos</div>
-                <a href="#" class="nav-item" data-view="compras">
-                    Órdenes de Compra
-                </a>
-                <a href="#" class="nav-item" data-view="ventas">
-                    Ventas / Remision
-                </a>
+
                 <div class="nav-section-title">Configuración</div>
                 <a href="#" class="nav-item" data-view="productos">
-                    Catalogo Productos
+                    Catálogo Productos
                 </a>
                 <a href="#" class="nav-item" data-view="clientes">
                     Clientes
@@ -508,6 +510,7 @@
                         </div>
                         <div class="card-footer text-right">
                             <button class="btn btn-secondary mr-2" onclick="limpiarFormRecibo()">Limpiar</button>
+                            <button class="btn btn-primary mr-2" onclick="imprimirReciboTrabajo()">🖨️ Imprimir Hoja de Recibo</button>
                             <button class="btn btn-success" onclick="guardarReciboIN()">Guardar Recibo en
                                 Inventario</button>
                         </div>
@@ -828,7 +831,14 @@
 
                 <!-- 9. VIEW: VENTAS / REMISIÓN -->
                 <section id="view-ventas" class="view-pane">
-                    <div class="card">
+                    <!-- Tabs de Navegación Interna de Ventas -->
+                    <div class="flex-row gap-2 mb-3">
+                        <button class="btn btn-primary" id="venta-tab-crear" onclick="switchVentaTab('crear')">Crear Factura</button>
+                        <button class="btn btn-secondary" id="venta-tab-masiva" onclick="switchVentaTab('masiva')">Subida Masiva (Excel / CSV)</button>
+                    </div>
+
+                    <!-- TAB 1: CREAR FACTURA -->
+                    <div id="venta-pane-crear" class="card">
                         <div class="card-header justify-between">
                             <h2>Crear Remisión / Factura de Venta</h2>
                             <div class="flex-row gap-2">
@@ -904,6 +914,62 @@
                             <button class="btn btn-primary mr-2" onclick="imprimirDocumento('VENTA')">Generar PDF /
                                 Imprimir</button>
                             <button class="btn btn-success" onclick="guardarVenta()">Guardar Factura de Venta</button>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: SUBIDA MASIVA -->
+                    <div id="venta-pane-masiva" class="card" style="display:none;">
+                        <div class="card-header">
+                            <h2>Subir Facturas de Venta Masivamente</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4"
+                                style="background-color: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); padding: 18px; border-radius: var(--radius-md);">
+                                <h3 style="color: #60a5fa; font-size: 1.1rem; margin-bottom: 8px;">Carga de Archivos de Excel o CSV:</h3>
+                                <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.4;">
+                                    Puede subir su archivo real de facturas/remisiones de venta en formato <strong>Excel (.xlsx, .xls)</strong> o <strong>CSV (.csv)</strong>.
+                                    El sistema detecta automáticamente las columnas mediante el análisis inteligente de encabezados (ej: <i>Remisión #, Cliente, Fecha, Producto, Cantidad, Valor Unitario</i>, etc.).
+                                </p>
+                                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">
+                                    * El sistema validará que los clientes y los códigos de producto ya existan en la base de datos antes de confirmar la importación.
+                                </p>
+                                <button class="btn btn-secondary btn-sm mt-3"
+                                    onclick="descargarPlantillaCSVVentas()">Descargar Plantilla Excel</button>
+                            </div>
+
+                            <div class="form-group mb-4">
+                                <label for="csv-file-input-ventas">Seleccionar Archivo (Excel o CSV)</label>
+                                <input type="file" id="csv-file-input-ventas" class="form-control" accept=".csv, .xlsx, .xls"
+                                    onchange="procesarArchivoCSVVentas()">
+                            </div>
+
+                            <!-- Vista previa de importación -->
+                            <div id="csv-preview-panel-ventas" style="display:none;" class="mt-4">
+                                <h3 style="font-size: 1.1rem; margin-bottom: 12px;">Vista Previa de Ventas a Importar</h3>
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>Remisión</th>
+                                                <th>Cliente</th>
+                                                <th>Fecha</th>
+                                                <th class="text-center">Items</th>
+                                                <th class="text-right">Total</th>
+                                                <th>Estado de Validación</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="csv-preview-body-ventas">
+                                            <!-- Dinámico -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-right mt-3">
+                                    <button class="btn btn-secondary mr-2"
+                                        onclick="cancelarImportacionCSVVentas()">Cancelar</button>
+                                    <button class="btn btn-success" id="btnConfirmarImportacionCSVVentas"
+                                        onclick="confirmarImportacionCSVVentas()" disabled>Confirmar e Importar Facturas</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>
