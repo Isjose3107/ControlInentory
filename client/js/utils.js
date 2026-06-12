@@ -216,9 +216,32 @@ export function readExcelOrCSV(file, aliasMap, callback) {
             if (isExcel) {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                let bestSheetName = '';
+                let bestRows = [];
+                let bestHeaderIndex = -1;
+                let bestMatchesCount = -1;
+                
+                for (const sheetName of workbook.SheetNames) {
+                    const worksheet = workbook.Sheets[sheetName];
+                    const sheetRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    const { headerIndex, matchesCount } = findHeaderRow(sheetRows, aliasMap);
+                    if (headerIndex !== -1 && matchesCount > bestMatchesCount) {
+                        bestMatchesCount = matchesCount;
+                        bestHeaderIndex = headerIndex;
+                        bestRows = sheetRows;
+                        bestSheetName = sheetName;
+                    }
+                }
+                
+                if (bestHeaderIndex === -1) {
+                    // Fallback to the first sheet if none matched
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                } else {
+                    rows = bestRows;
+                }
             } else {
                 const text = e.target.result;
                 rows = text.split('\n').map(line => {
