@@ -299,29 +299,22 @@ export function esZonaAuxiliar(ubicacion) {
     return p >= 10 && p < 20;
 }
 
-export function populateProductosSelect(selectId) {
+// ponytail: generic select populator helper
+function populateSelect(selectId, data, valueKey, textFn, placeholder) {
     const select = document.getElementById(selectId);
-    if (select) {
-        select.innerHTML = '<option value="">Seleccione producto...</option>' +
-            state.productos.map(p => `<option value="${p.codigo}">${p.codigo} - ${p.descripcion}</option>`).join('');
-    }
+    if (!select) return;
+    select.innerHTML = `<option value="">${placeholder}</option>` +
+        data.map(item => `<option value="${item[valueKey]}">${textFn(item)}</option>`).join('');
 }
 
-export function populateClientesSelect(selectId) {
-    const select = document.getElementById(selectId);
-    if (select) {
-        select.innerHTML = '<option value="">Seleccione cliente...</option>' +
-            state.clientes.map(c => `<option value="${c.nit}">${c.nombre}</option>`).join('');
-    }
-}
+export const populateProductosSelect = (id) =>
+    populateSelect(id, state.productos, 'codigo', p => `${p.codigo} - ${p.descripcion}`, 'Seleccione producto...');
 
-export function populateProveedoresSelect(selectId) {
-    const select = document.getElementById(selectId);
-    if (select) {
-        select.innerHTML = '<option value="">Seleccione proveedor...</option>' +
-            state.proveedores.map(p => `<option value="${p.nit}">${p.nombre}</option>`).join('');
-    }
-}
+export const populateClientesSelect = (id) =>
+    populateSelect(id, state.clientes, 'nit', c => c.nombre, 'Seleccione cliente...');
+
+export const populateProveedoresSelect = (id) =>
+    populateSelect(id, state.proveedores, 'nit', p => p.nombre, 'Seleccione proveedor...');
 
 export function ubiSelectorHTML(prefix, currentVal = '') {
     let selVano = '01', selNivel = '01', selPos = '10';
@@ -408,6 +401,20 @@ export function validarCondicionesUbicacion(prefix, code) {
         if (prodEl) productCode = prodEl.value;
         const qtyInput = document.getElementById('out-cantidad');
         if (qtyInput) newQty = Number(qtyInput.value) || 0;
+    } else if (prefix.startsWith('dev-')) {
+        const rowId = prefix.split('-')[1];
+        const row = document.getElementById(`dev-row-${rowId}`);
+        if (row) {
+            const prodEl = row.querySelector('.dev-item-select');
+            if (prodEl) productCode = prodEl.value;
+            const cajasEl = row.querySelector('.dev-item-cajas');
+            const unidadesEl = row.querySelector('.dev-item-unidades');
+            const convEl = row.querySelector('.dev-item-conversion');
+            const cajas = Number(cajasEl ? cajasEl.value : 0);
+            const unidades = Number(unidadesEl ? unidadesEl.value : 0);
+            const conv = Number(convEl ? convEl.value : 1);
+            newQty = unidades + (cajas * conv);
+        }
     }
 
     if (!productCode) return;
@@ -493,7 +500,7 @@ export function validarUbicacion(code) {
 
 export function initDateInputs() {
     const today = new Date().toISOString().split('T')[0];
-    const dateInputs = ['oc-fecha', 'oc-fecha-envio', 'os-fecha', 'os-fecha-envio', 'venta-fecha', 'in-fecha', 'out-fecha', 'monta-fecha'];
+    const dateInputs = ['oc-fecha', 'oc-fecha-envio', 'os-fecha', 'os-fecha-envio', 'venta-fecha', 'in-fecha', 'out-fecha', 'monta-fecha', 'dev-fecha'];
     dateInputs.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = today;

@@ -23,7 +23,7 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo">
-                    <span class="logo-text">HABITAD WMS</span>
+                    <span class="logo-text">INVENTARY CONTROL</span>
                 </div>
             </div>
             <nav class="sidebar-nav">
@@ -39,7 +39,7 @@
                     Montacarguista
                 </a>
                 <a href="#" class="nav-item" data-view="picking">
-                    Picking / Alistamiento
+                    Picking
                 </a>
 
 
@@ -48,12 +48,20 @@
                     Órdenes de Compra (OC)
                 </a>
                 <a href="#" class="nav-item" data-view="entradas">
-                    Recibo (IN)
+                    Recibo
                 </a>
 
                 <div class="nav-section-title">Inventario</div>
                 <a href="#" class="nav-item" data-view="inventario">
-                    Inventario (Ubicaciones)
+                    Inventario
+                </a>
+
+                <div class="nav-section-title">Devoluciones</div>
+                <a href="#" class="nav-item" data-view="devoluciones">
+                    Ingreso Devolución de Mercancía
+                </a>
+                <a href="#" class="nav-item" data-view="devoluciones_cliente">
+                    Salida Devolución Cliente
                 </a>
 
                 <div class="nav-section-title">Configuración</div>
@@ -374,7 +382,7 @@
                     <!-- TAB 2: CARGA MASIVA DE INVENTARIO GENERAL -->
                     <div id="inv-pane-masivo" class="card" style="display:none;">
                         <div class="card-header">
-                            <h2>Carga Masiva de Inventario General (Ciego)</h2>
+                            <h2>Carga Masiva de Inventario General </h2>
                         </div>
                         <div class="card-body">
                             <div class="mb-4"
@@ -519,7 +527,7 @@
                         </div>
                         <div class="card-footer text-right">
                             <button class="btn btn-secondary mr-2" onclick="limpiarFormRecibo()">Limpiar</button>
-                            <button class="btn btn-primary mr-2" onclick="imprimirReciboTrabajo()">🖨️ Imprimir Hoja de
+                            <button class="btn btn-primary mr-2" onclick="imprimirReciboTrabajo()">Imprimir Hoja de
                                 Recibo</button>
                             <button class="btn btn-success" onclick="guardarReciboIN()">Guardar Recibo en
                                 Inventario</button>
@@ -940,15 +948,18 @@
                                 <h3 style="color: #60a5fa; font-size: 1.1rem; margin-bottom: 8px;">Carga Diaria de
                                     Facturas de Venta (Excel / CSV):</h3>
                                 <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.4;">
-                                    Puede subir su archivo diario de facturas/requisiciones de venta en formato <strong>Excel
+                                    Puede subir su archivo diario de facturas/requisiciones de venta en formato
+                                    <strong>Excel
                                         (.xlsx, .xls)</strong> o <strong>CSV (.csv)</strong>.
                                     El sistema detecta automáticamente las columnas mediante el análisis inteligente de
                                     encabezados (ej: <i>REQ. #, Fecha Elab, Elemento, Descripción, Cantidad, Unidades,
                                         U.M., Solicitante, Observaciones, Cava/Almacén</i>, etc.).
                                 </p>
                                 <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">
-                                    * La columna <strong>"CANTIDAD"</strong> se interpreta como valor unitario ($) y la columna <strong>"unidades"</strong> como cantidad real.
-                                    El sistema validará que los clientes y los códigos de producto existan antes de confirmar la importación.
+                                    * La columna <strong>"CANTIDAD"</strong> se interpreta como valor unitario ($) y la
+                                    columna <strong>"unidades"</strong> como cantidad real.
+                                    El sistema validará que los clientes y los códigos de producto existan antes de
+                                    confirmar la importación.
                                 </p>
                                 <button class="btn btn-secondary btn-sm mt-3"
                                     onclick="descargarPlantillaCSVVentas()">Descargar Plantilla Excel</button>
@@ -1011,13 +1022,20 @@
                         </div>
                         <div class="card-body">
                             <!-- Búsqueda Rápida para Editar -->
-                            <div class="form-row mb-4" style="background-color: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); align-items: flex-end;">
+                            <div class="form-row mb-4"
+                                style="background-color: var(--bg-surface-elevated); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); align-items: flex-end;">
                                 <div class="form-group flex-1" style="margin-bottom: 0;">
-                                    <label for="prod-buscar-rapido" style="font-weight: 700; color: var(--color-primary);">🔍 Buscar Producto por Código para Editar</label>
-                                    <input type="text" id="prod-buscar-rapido" class="form-control" placeholder="Ingrese el código exacto del producto a editar..." onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.buscarYEditarProducto(); }">
+                                    <label for="prod-buscar-rapido"
+                                        style="font-weight: 700; color: var(--color-primary);">Buscar Producto por
+                                        Código para Editar</label>
+                                    <input type="text" id="prod-buscar-rapido" class="form-control"
+                                        placeholder="Ingrese el código exacto del producto a editar..."
+                                        onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.buscarYEditarProducto(); }">
                                 </div>
                                 <div class="form-group align-self-end" style="margin-bottom: 0;">
-                                    <button class="btn btn-primary" onclick="window.buscarYEditarProducto()" style="height: 42px; display: inline-flex; align-items: center; justify-content: center; width: auto !important;">Buscar y Cargar</button>
+                                    <button class="btn btn-primary" onclick="window.buscarYEditarProducto()"
+                                        style="height: 42px; display: inline-flex; align-items: center; justify-content: center; width: auto !important;">Buscar
+                                        y Cargar</button>
                                 </div>
                             </div>
 
@@ -1371,6 +1389,392 @@
                                 </thead>
                                 <tbody id="proveedores-list-body">
                                     <!-- Dinámico -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 8. VIEW: DEVOLUCIONES DE MERCANCÍA -->
+                <section id="view-devoluciones" class="view-pane">
+                    <!-- Tabs de Devoluciones -->
+                    <div class="flex-row gap-2 mb-3">
+                        <button class="btn btn-primary" id="dev-tab-registrar"
+                            onclick="switchDevTab('registrar')">Registrar Devolución</button>
+                        <button class="btn btn-secondary" id="dev-tab-historial"
+                            onclick="switchDevTab('historial')">Historial de Devoluciones</button>
+                    </div>
+
+                    <!-- TAB 1: REGISTRAR DEVOLUCIÓN -->
+                    <div id="dev-pane-registrar" class="card ransa-form-container">
+                        <!-- Cabecera estilo formato físico RANSA -->
+                        <div class="ransa-form-header">
+                            <div class="ransa-header-left">
+                                <div class="ransa-logo-print">RANSA</div>
+                            </div>
+                            <div class="ransa-header-center">
+                                <h2 class="ransa-form-title">DEVOLUCIÓN DE MERCANCIA</h2>
+                                <div class="ransa-form-code">Código: FR-ALM-023</div>
+                            </div>
+                            <div class="ransa-header-right">
+                                <div class="ransa-form-version">VERSIÓN # 4</div>
+                                <div class="ransa-form-page">PÁGINA 1 DE 1</div>
+                            </div>
+                            <div class="ransa-header-consecutivo">
+                                <div class="ransa-consecutivo-box">
+                                    <div class="ransa-consecutivo-label">Nº CONSECUTIVO</div>
+                                    <div class="ransa-consecutivo-value" id="dev-consecutivo-preview">PENDIENTE</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-body">
+                            <!-- Datos del Formulario -->
+                            <div class="form-row">
+                                <div class="form-group flex-2">
+                                    <label for="dev-cliente">CLIENTE:</label>
+                                    <select id="dev-cliente" class="form-control"></select>
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="dev-factura">No. FACTURA:</label>
+                                    <div class="flex-row gap-1">
+                                        <input type="text" id="dev-factura" class="form-control"
+                                            placeholder="No. Factura o Remisión">
+                                        <button class="btn btn-secondary btn-sm" onclick="cargarFacturaParaDevolucion()"
+                                            type="button" title="Buscar Factura">Buscar</button>
+                                    </div>
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="dev-ciudad">CIUDAD:</label>
+                                    <input type="text" id="dev-ciudad" class="form-control" placeholder="Ciudad">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group flex-2">
+                                    <label for="dev-almacen">ALMACÉN / BODEGA:</label>
+                                    <input type="text" id="dev-almacen" class="form-control"
+                                        placeholder="Nombre de Almacén">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="dev-fecha">FECHA RECIBO:</label>
+                                    <input type="date" id="dev-fecha" class="form-control">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="dev-ruta">RUTA:</label>
+                                    <input type="text" id="dev-ruta" class="form-control" placeholder="No. Ruta">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="dev-placa">PLACA:</label>
+                                    <input type="text" id="dev-placa" class="form-control" placeholder="Placa Vehículo">
+                                </div>
+                            </div>
+
+                            <!-- Tabla de Productos Devueltos -->
+                            <h3 class="mt-4 mb-2">Detalle de Productos de la Devolución</h3>
+                            <div class="table-responsive">
+                                <table class="table ransa-items-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 25%">Descripción o Código del Producto</th>
+                                            <th style="width: 10%" class="text-center">Cant. Cajas</th>
+                                            <th style="width: 10%" class="text-center">Cant. Unidades</th>
+                                            <th style="width: 10%" class="text-center">Uds por Caja</th>
+                                            <th style="width: 15%">Causal de Devolución</th>
+                                            <th style="width: 15%">Destino del Producto</th>
+                                            <th style="width: 10%">Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dev-items-table-body">
+                                        <!-- Dinámico -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button class="btn btn-secondary btn-sm mt-2" onclick="agregarFilaItemDevolucion()">+
+                                Agregar Producto</button>
+
+                            <!-- Observaciones e Info Adicional -->
+                            <div class="form-row mt-4">
+                                <div class="form-group flex-2">
+                                    <label for="dev-observaciones">OBSERVACIONES:</label>
+                                    <textarea id="dev-observaciones" class="form-control" rows="3"
+                                        placeholder="Detalle observaciones adicionales sobre el recibo de la devolución..."></textarea>
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label>ESTADO DEL PRODUCTO:</label>
+                                    <div class="radio-group-vertical"
+                                        style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+                                        <label class="radio-label"
+                                            style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                            <input type="radio" name="dev-estado-producto" value="Bueno" checked>
+                                            <span><strong>1. Bueno:</strong> Mercancía en buen estado (Apta para
+                                                stock)</span>
+                                        </label>
+                                        <label class="radio-label"
+                                            style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                            <input type="radio" name="dev-estado-producto" value="Averiado">
+                                            <span><strong>2. Averiado:</strong> Avería en almacén o transporte</span>
+                                        </label>
+                                        <label class="radio-label"
+                                            style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                            <input type="radio" name="dev-estado-producto" value="No Conforme">
+                                            <span><strong>3. No Conforme:</strong> Deterioro en punto de venta</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Panel de Firmas Electrónicas (Requisito Crítico) -->
+                            <h3 class="mt-4 mb-2">Firmas Digitales (Firma Electrónica)</h3>
+                            <div class="signatures-grid">
+                                <div class="signature-card">
+                                    <div class="signature-label">RESPONSABLE DEL RECIBO</div>
+                                    <div class="canvas-container">
+                                        <canvas id="canvas-firma-responsable" width="280" height="150"></canvas>
+                                    </div>
+                                    <button class="btn btn-secondary btn-sm mt-2"
+                                        onclick="limpiarCanvasFirma('responsable')">Limpiar Firma</button>
+                                </div>
+
+                                <div class="signature-card">
+                                    <div class="signature-label">NOMBRE DEL TRANSPORTADOR</div>
+                                    <input type="text" id="dev-nombre-transportador"
+                                        class="form-control form-control-sm mb-2"
+                                        placeholder="Escriba el nombre completo">
+                                    <div class="canvas-container">
+                                        <canvas id="canvas-firma-transportador" width="280" height="150"></canvas>
+                                    </div>
+                                    <button class="btn btn-secondary btn-sm mt-2"
+                                        onclick="limpiarCanvasFirma('transportador')">Limpiar Firma</button>
+                                </div>
+
+                                <div class="signature-card">
+                                    <div class="signature-label">RECIBIDO DEL CLIENTE</div>
+                                    <div class="canvas-container">
+                                        <canvas id="canvas-firma-cliente" width="280" height="150"></canvas>
+                                    </div>
+                                    <button class="btn btn-secondary btn-sm mt-2"
+                                        onclick="limpiarCanvasFirma('cliente')">Limpiar Firma</button>
+                                </div>
+                            </div>
+
+                        </div>
+                        <div class="card-footer text-right">
+                            <button class="btn btn-secondary mr-2" onclick="limpiarFormDevolucion()">Limpiar
+                                Formulario</button>
+                            <button class="btn btn-success" onclick="guardarDevolucion()">Guardar Devolución y
+                                Procesar</button>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: HISTORIAL DE DEVOLUCIONES -->
+                    <div id="dev-pane-historial" class="card" style="display:none;">
+                        <div class="card-header justify-between">
+                            <h2>Historial de Devoluciones de Mercancía</h2>
+                            <div class="flex-row gap-2">
+                                <input type="text" id="dev-search-input" class="form-control w-auto"
+                                    placeholder="Buscar por cliente/factura..."
+                                    onkeyup="filtrarHistorialDevoluciones()">
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="loadDevolucionesHistorial()">Actualizar</button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID Consecutivo</th>
+                                        <th>Fecha Registro</th>
+                                        <th>Cliente</th>
+                                        <th>Factura Ref.</th>
+                                        <th>Ciudad / Almacén</th>
+                                        <th>Estado Producto</th>
+                                        <th class="text-center">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dev-historial-body">
+                                    <tr>
+                                        <td colspan="7" class="text-center">Cargando historial...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Modal Detalle Devolución -->
+                    <div id="dev-detail-modal" class="modal" style="display:none;">
+                        <div class="modal-content modal-xl">
+                            <div class="modal-header"
+                                style="border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
+                                <h2 style="font-weight: 700; color: var(--text-primary);">📄 Detalle de Devolución de
+                                    Mercancía: Nº <span id="modal-dev-consecutivo"
+                                        style="color: var(--color-primary);"></span></h2>
+                                <span class="close" onclick="cerrarDetalleDevolucion()">&times;</span>
+                            </div>
+                            <div class="modal-body" style="padding: 16px 0;">
+                                <div class="form-row">
+                                    <div class="form-group flex-1">
+                                        <label><strong>Cliente:</strong></label>
+                                        <span id="modal-dev-cliente">-</span>
+                                    </div>
+                                    <div class="form-group flex-1">
+                                        <label><strong>No. Factura:</strong></label>
+                                        <span id="modal-dev-factura">-</span>
+                                    </div>
+                                    <div class="form-group flex-1">
+                                        <label><strong>Fecha Recibo:</strong></label>
+                                        <span id="modal-dev-fecha">-</span>
+                                    </div>
+                                </div>
+                                <div class="form-row mt-2">
+                                    <div class="form-group flex-1">
+                                        <label><strong>Ciudad / Almacén:</strong></label>
+                                        <span id="modal-dev-ciudad-almacen">-</span>
+                                    </div>
+                                    <div class="form-group flex-1">
+                                        <label><strong>Ruta / Placa:</strong></label>
+                                        <span id="modal-dev-ruta-placa">-</span>
+                                    </div>
+                                    <div class="form-group flex-1">
+                                        <label><strong>Estado Producto:</strong></label>
+                                        <span id="modal-dev-estado">-</span>
+                                    </div>
+                                </div>
+
+                                <h3 class="mt-4 mb-2">Ítems Devueltos</h3>
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>Código</th>
+                                                <th>Descripción</th>
+                                                <th class="text-center">Cajas</th>
+                                                <th class="text-center">Unidades</th>
+                                                <th class="text-center">Uds/Caja</th>
+                                                <th>Causal</th>
+                                                <th>Destino</th>
+                                                <th>Ubicación Reintegro</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="modal-dev-items-body">
+                                            <!-- Dinámico -->
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="mt-3">
+                                    <label><strong>Observaciones:</strong></label>
+                                    <p id="modal-dev-observaciones" class="text-muted"
+                                        style="background:var(--bg-base); padding:10px; border-radius:6px; min-height:40px; border:1px solid var(--border-color);">
+                                    </p>
+                                </div>
+
+                                <h3 class="mt-4 mb-2">Firmas Registradas</h3>
+                                <div class="signatures-grid-view">
+                                    <div class="signature-view-card">
+                                        <div class="signature-view-title">RESPONSABLE RECIBO</div>
+                                        <div class="signature-img-container">
+                                            <img id="img-firma-responsable" class="signature-img"
+                                                alt="Firma Responsable Recibo">
+                                        </div>
+                                    </div>
+                                    <div class="signature-view-card">
+                                        <div class="signature-view-title">TRANSPORTADOR: <span
+                                                id="modal-dev-transportador-nombre"></span></div>
+                                        <div class="signature-img-container">
+                                            <img id="img-firma-transportador" class="signature-img"
+                                                alt="Firma Transportador">
+                                        </div>
+                                    </div>
+                                    <div class="signature-view-card">
+                                        <div class="signature-view-title">RECIBIDO CLIENTE</div>
+                                        <div class="signature-img-container">
+                                            <img id="img-firma-cliente" class="signature-img"
+                                                alt="Firma Recibido Cliente">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer"
+                                style="border-top: 1px solid var(--border-color); padding-top: 16px; text-align: right;">
+                                <button class="btn btn-secondary mr-2"
+                                    onclick="cerrarDetalleDevolucion()">Cerrar</button>
+                                <button class="btn btn-primary" id="btn-print-devolucion"
+                                    onclick="imprimirDevolucionActual()">🖨️ Imprimir Formato</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 8.2 VIEW: SALIDA DEVOLUCIÓN A CLIENTE -->
+                <section id="view-devoluciones_cliente" class="view-pane">
+                    <div class="flex-row gap-2 mb-3">
+                        <button class="btn btn-primary" id="devc-tab-pendientes"
+                            onclick="switchDevcTab('pendientes')">Pendientes de Salida</button>
+                        <button class="btn btn-secondary" id="devc-tab-historial"
+                            onclick="switchDevcTab('historial')">Historial de Salidas</button>
+                    </div>
+
+                    <div id="devc-pane-pendientes" class="card">
+                        <div class="card-header justify-between">
+                            <h2>Productos Pendientes de Entrega al Cliente</h2>
+                            <div class="flex-row gap-2">
+                                <input type="text" id="devc-search-pending" class="form-control w-auto"
+                                    placeholder="Buscar..." onkeyup="filtrarDevcPending()">
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="loadDevolucionesCliente()">Actualizar</button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID Dev</th>
+                                        <th>Fecha</th>
+                                        <th>Cliente</th>
+                                        <th>Código</th>
+                                        <th>Descripción</th>
+                                        <th class="text-center">Cant. (Uds)</th>
+                                        <th>Causal</th>
+                                        <th class="text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="devc-pendientes-body">
+                                    <tr>
+                                        <td colspan="8" class="text-center text-muted">Cargando...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="devc-pane-historial" class="card" style="display:none;">
+                        <div class="card-header justify-between">
+                            <h2>Historial de Salidas al Cliente</h2>
+                            <div class="flex-row gap-2">
+                                <input type="text" id="devc-search-history" class="form-control w-auto"
+                                    placeholder="Buscar..." onkeyup="filtrarDevcHistory()">
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="loadDevolucionesCliente()">Actualizar</button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID Dev</th>
+                                        <th>Fecha Salida</th>
+                                        <th>Cliente</th>
+                                        <th>Código</th>
+                                        <th>Descripción</th>
+                                        <th class="text-center">Cant.</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="devc-historial-body">
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted">Sin registros</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>

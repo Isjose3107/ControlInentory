@@ -48,214 +48,129 @@ async function executeQuery(sql, params = []) {
     }
 }
 
-// Inicialización de Tablas de forma segura según el motor detectado
-async function initTables() {
-    if (isPostgres) {
-        await executeQuery(`
-            CREATE TABLE IF NOT EXISTS usuarios (
-                username TEXT PRIMARY KEY,
-                password_hash TEXT NOT NULL,
-                correo TEXT,
-                otp TEXT,
-                otp_expiry BIGINT
-            );
-        `);
-        await executeQuery(`
-            CREATE TABLE IF NOT EXISTS clientes (
-                nit TEXT PRIMARY KEY,
-                nombre TEXT NOT NULL,
-                telefono TEXT,
-                direccion TEXT,
-                correo TEXT
-            );
-        `);
-        await executeQuery(`
-            CREATE TABLE IF NOT EXISTS proveedores (
-                nit TEXT PRIMARY KEY,
-                nombre TEXT NOT NULL,
-                telefono TEXT,
-                direccion TEXT,
-                correo TEXT
-            );
-        `);
-        await executeQuery(`
-            CREATE TABLE IF NOT EXISTS productos (
-                codigo TEXT PRIMARY KEY,
-                descripcion TEXT NOT NULL,
-                peso REAL,
-                valor_venta REAL,
-                marca TEXT,
-                alto REAL,
-                largo REAL,
-                ancho REAL,
-                unidad_compra TEXT DEFAULT 'Und',
-                unidad_consumo TEXT DEFAULT 'Und'
-            );
-        `);
-        await executeQuery(`
-            CREATE TABLE IF NOT EXISTS ordenes_compra (
-                consecutivo TEXT PRIMARY KEY,
-                fecha TEXT NOT NULL,
-                proveedor_nit TEXT,
-                observaciones TEXT,
-                descuento REAL DEFAULT 0,
-                iva REAL DEFAULT 0,
-                retencion REAL DEFAULT 0,
-                condiciones_envio TEXT,
-                forma_pago TEXT,
-                fecha_envio TEXT,
-                items TEXT NOT NULL,
-                FOREIGN KEY(proveedor_nit) REFERENCES proveedores(nit)
-            );
-        `);
-        await executeQuery(`
-            CREATE TABLE IF NOT EXISTS ventas (
-                remision TEXT PRIMARY KEY,
-                fecha TEXT NOT NULL,
-                cliente_nit TEXT,
-                observaciones TEXT,
-                iva REAL DEFAULT 0,
-                items TEXT NOT NULL,
-                estado TEXT DEFAULT 'Pendiente',
-                auxiliar TEXT,
-                FOREIGN KEY(cliente_nit) REFERENCES clientes(nit)
-            );
-        `);
-        await executeQuery(`
-            CREATE TABLE IF NOT EXISTS inventario_movimientos (
-                id SERIAL PRIMARY KEY,
-                codigo_producto TEXT NOT NULL,
-                tipo TEXT NOT NULL,
-                documento_referencia TEXT,
-                fecha TEXT NOT NULL,
-                cantidad REAL NOT NULL,
-                ubicacion TEXT NOT NULL,
-                FOREIGN KEY(codigo_producto) REFERENCES productos(codigo)
-            );
-                        CREATE TABLE IF NOT EXISTS usuarios (
-                username TEXT PRIMARY KEY,
-                password_hash TEXT NOT NULL,
-                correo TEXT,
-                otp TEXT,
-                otp_expiry INTEGER
-            );
+// ponytail: single source of truth for schemas, adapted on the fly for SQLite/Postgres
+const tableDefinitions = [
+    `CREATE TABLE IF NOT EXISTS usuarios (
+        username TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        correo TEXT,
+        otp TEXT,
+        otp_expiry BIGINT
+    )`,
+    `CREATE TABLE IF NOT EXISTS clientes (
+        nit TEXT PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        telefono TEXT,
+        direccion TEXT,
+        correo TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS proveedores (
+        nit TEXT PRIMARY KEY,
+        nombre TEXT NOT NULL,
+        telefono TEXT,
+        direccion TEXT,
+        correo TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS productos (
+        codigo TEXT PRIMARY KEY,
+        descripcion TEXT NOT NULL,
+        peso REAL,
+        valor_venta REAL,
+        marca TEXT,
+        alto REAL,
+        largo REAL,
+        ancho REAL,
+        unidad_compra TEXT DEFAULT 'Und',
+        unidad_consumo TEXT DEFAULT 'Und'
+    )`,
+    `CREATE TABLE IF NOT EXISTS ordenes_compra (
+        consecutivo TEXT PRIMARY KEY,
+        fecha TEXT NOT NULL,
+        proveedor_nit TEXT,
+        observaciones TEXT,
+        descuento REAL DEFAULT 0,
+        iva REAL DEFAULT 0,
+        retencion REAL DEFAULT 0,
+        condiciones_envio TEXT,
+        forma_pago TEXT,
+        fecha_envio TEXT,
+        items TEXT NOT NULL,
+        FOREIGN KEY(proveedor_nit) REFERENCES proveedores(nit)
+    )`,
+    `CREATE TABLE IF NOT EXISTS ventas (
+        remision TEXT PRIMARY KEY,
+        fecha TEXT NOT NULL,
+        cliente_nit TEXT,
+        observaciones TEXT,
+        iva REAL DEFAULT 0,
+        items TEXT NOT NULL,
+        estado TEXT DEFAULT 'Pendiente',
+        auxiliar TEXT,
+        FOREIGN KEY(cliente_nit) REFERENCES clientes(nit)
+    )`,
+    `CREATE TABLE IF NOT EXISTS inventario_movimientos (
+        id SERIAL PRIMARY KEY,
+        codigo_producto TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        documento_referencia TEXT,
+        fecha TEXT NOT NULL,
+        cantidad REAL NOT NULL,
+        ubicacion TEXT NOT NULL,
+        FOREIGN KEY(codigo_producto) REFERENCES productos(codigo)
+    )`,
+    `CREATE TABLE IF NOT EXISTS devoluciones (
+        id SERIAL PRIMARY KEY,
+        cliente_nit TEXT,
+        factura TEXT,
+        ciudad TEXT,
+        almacen TEXT,
+        fecha TEXT,
+        ruta TEXT,
+        placa TEXT,
+        items TEXT NOT NULL,
+        observaciones TEXT,
+        estado_producto TEXT,
+        firma_responsable TEXT,
+        firma_transportador TEXT,
+        nombre_transportador TEXT,
+        firma_cliente TEXT,
+        fecha_registro TEXT
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_movimientos_producto ON inventario_movimientos(codigo_producto)`,
+    `CREATE INDEX IF NOT EXISTS idx_movimientos_ubicacion ON inventario_movimientos(ubicacion)`,
+    `CREATE INDEX IF NOT EXISTS idx_movimientos_referencia ON inventario_movimientos(documento_referencia)`
+];
 
-        `);
-        try {
-            await executeQuery(`CREATE INDEX IF NOT EXISTS idx_movimientos_producto ON inventario_movimientos(codigo_producto);`);
-            await executeQuery(`CREATE INDEX IF NOT EXISTS idx_movimientos_ubicacion ON inventario_movimientos(ubicacion);`);
-            await executeQuery(`CREATE INDEX IF NOT EXISTS idx_movimientos_referencia ON inventario_movimientos(documento_referencia);`);
-        } catch (e) {
-            // Ignorar si los índices ya existen
+async function initTables() {
+    for (let sql of tableDefinitions) {
+        if (!isPostgres) {
+            sql = sql
+                .replace(/SERIAL PRIMARY KEY/g, 'INTEGER PRIMARY KEY AUTOINCREMENT')
+                .replace(/BIGINT/g, 'INTEGER');
+            sqliteDb.exec(sql);
+        } else {
+            await executeQuery(sql);
         }
-    } else {
-        sqliteDb.exec(`
-            CREATE TABLE IF NOT EXISTS usuarios (
-                username TEXT PRIMARY KEY,
-                password_hash TEXT NOT NULL,
-                correo TEXT,
-                otp TEXT,
-                otp_expiry INTEGER
-            );
-            CREATE TABLE IF NOT EXISTS clientes (
-                nit TEXT PRIMARY KEY,
-                nombre TEXT NOT NULL,
-                telefono TEXT,
-                direccion TEXT,
-                correo TEXT
-            );
-            CREATE TABLE IF NOT EXISTS proveedores (
-                nit TEXT PRIMARY KEY,
-                nombre TEXT NOT NULL,
-                telefono TEXT,
-                direccion TEXT,
-                correo TEXT
-            );
-            CREATE TABLE IF NOT EXISTS productos (
-                codigo TEXT PRIMARY KEY,
-                descripcion TEXT NOT NULL,
-                peso REAL,
-                valor_venta REAL,
-                marca TEXT,
-                alto REAL,
-                largo REAL,
-                ancho REAL,
-                unidad_compra TEXT DEFAULT 'Und',
-                unidad_consumo TEXT DEFAULT 'Und'
-            );
-            CREATE TABLE IF NOT EXISTS ordenes_compra (
-                consecutivo TEXT PRIMARY KEY,
-                fecha TEXT NOT NULL,
-                proveedor_nit TEXT,
-                observaciones TEXT,
-                descuento REAL DEFAULT 0,
-                iva REAL DEFAULT 0,
-                retencion REAL DEFAULT 0,
-                condiciones_envio TEXT,
-                forma_pago TEXT,
-                fecha_envio TEXT,
-                items TEXT NOT NULL,
-                FOREIGN KEY(proveedor_nit) REFERENCES proveedores(nit)
-            );
-            CREATE TABLE IF NOT EXISTS ventas (
-                remision TEXT PRIMARY KEY,
-                fecha TEXT NOT NULL,
-                cliente_nit TEXT,
-                observaciones TEXT,
-                iva REAL DEFAULT 0,
-                items TEXT NOT NULL,
-                estado TEXT DEFAULT 'Pendiente',
-                auxiliar TEXT,
-                FOREIGN KEY(cliente_nit) REFERENCES clientes(nit)
-            );
-            CREATE TABLE IF NOT EXISTS inventario_movimientos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                codigo_producto TEXT NOT NULL,
-                tipo TEXT NOT NULL,
-                documento_referencia TEXT,
-                fecha TEXT NOT NULL,
-                cantidad REAL NOT NULL,
-                ubicacion TEXT NOT NULL,
-                FOREIGN KEY(codigo_producto) REFERENCES productos(codigo)
-            );
-            CREATE INDEX IF NOT EXISTS idx_movimientos_producto ON inventario_movimientos(codigo_producto);
-            CREATE INDEX IF NOT EXISTS idx_movimientos_ubicacion ON inventario_movimientos(ubicacion);
-            CREATE INDEX IF NOT EXISTS idx_movimientos_referencia ON inventario_movimientos(documento_referencia);
-        `);
     }
 
-    // Asegurar migración de columnas adicionales en bases de datos existentes
-    try {
-        if (isPostgres) {
-            await executeQuery(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS correo TEXT;`);
-        } else {
-            sqliteDb.exec(`ALTER TABLE usuarios ADD COLUMN correo TEXT;`);
-        }
-    } catch (e) { }
+    const alterColumns = [
+        { table: 'usuarios', column: 'correo', type: 'TEXT' },
+        { table: 'ventas', column: 'auxiliar', type: 'TEXT' },
+        { table: 'productos', column: 'unidad_compra', type: 'TEXT', def: "DEFAULT 'Und'" },
+        { table: 'productos', column: 'unidad_consumo', type: 'TEXT', def: "DEFAULT 'Und'" }
+    ];
 
-    try {
-        if (isPostgres) {
-            await executeQuery(`ALTER TABLE ventas ADD COLUMN IF NOT EXISTS auxiliar TEXT;`);
-        } else {
-            sqliteDb.exec(`ALTER TABLE ventas ADD COLUMN auxiliar TEXT;`);
+    for (const item of alterColumns) {
+        try {
+            if (isPostgres) {
+                await executeQuery(`ALTER TABLE ${item.table} ADD COLUMN IF NOT EXISTS ${item.column} ${item.type} ${item.def || ''};`);
+            } else {
+                sqliteDb.exec(`ALTER TABLE ${item.table} ADD COLUMN ${item.column} ${item.type} ${item.def || ''};`);
+            }
+        } catch (e) {
+            // Ignorar errores si la columna ya existe
         }
-    } catch (e) { }
-
-    try {
-        if (isPostgres) {
-            await executeQuery(`ALTER TABLE productos ADD COLUMN IF NOT EXISTS unidad_compra TEXT DEFAULT 'Und';`);
-        } else {
-            sqliteDb.exec(`ALTER TABLE productos ADD COLUMN unidad_compra TEXT DEFAULT 'Und';`);
-        }
-    } catch (e) { }
-
-    try {
-        if (isPostgres) {
-            await executeQuery(`ALTER TABLE productos ADD COLUMN IF NOT EXISTS unidad_consumo TEXT DEFAULT 'Und';`);
-        } else {
-            sqliteDb.exec(`ALTER TABLE productos ADD COLUMN unidad_consumo TEXT DEFAULT 'Und';`);
-        }
-    } catch (e) { }
+    }
 }
 
 // Semilla de base de datos
@@ -1062,6 +977,138 @@ module.exports = {
         const newHash = crypto.createHash('sha256').update(newPassword).digest('hex');
         await executeQuery("UPDATE usuarios SET password_hash = ?, otp = NULL, otp_expiry = NULL WHERE username = ?", [newHash, username]);
         return true;
+    },
+
+    // --- DEVOLUCIONES DE MERCANCÍA ---
+    async getDevoluciones() {
+        const rows = await executeQuery(`
+            SELECT d.*, c.nombre as cliente_nombre 
+            FROM devoluciones d
+            LEFT JOIN clientes c ON d.cliente_nit = c.nit
+            ORDER BY d.id DESC
+        `);
+        rows.forEach(r => {
+            if (typeof r.items === 'string') {
+                r.items = JSON.parse(r.items);
+            }
+        });
+        return rows;
+    },
+
+    async getDevolucionById(id) {
+        const rows = await executeQuery(`
+            SELECT d.*, c.nombre as cliente_nombre 
+            FROM devoluciones d
+            LEFT JOIN clientes c ON d.cliente_nit = c.nit
+            WHERE d.id = ?
+        `, [id]);
+        const row = rows[0];
+        if (row && typeof row.items === 'string') {
+            row.items = JSON.parse(row.items);
+        }
+        return row;
+    },
+
+    async createDevolucion(body) {
+        const fechaActual = new Date().toISOString().split('T')[0];
+        const params = [
+            body.cliente_nit,
+            body.factura,
+            body.ciudad,
+            body.almacen,
+            body.fecha,
+            body.ruta,
+            body.placa,
+            JSON.stringify(body.items),
+            body.observaciones,
+            body.estado_producto,
+            body.firma_responsable,
+            body.firma_transportador,
+            body.nombre_transportador,
+            body.firma_cliente,
+            fechaActual
+        ];
+
+        let insertId = null;
+        if (isPostgres) {
+            const res = await executeQuery(`
+                INSERT INTO devoluciones (
+                    cliente_nit, factura, ciudad, almacen, fecha, ruta, placa, 
+                    items, observaciones, estado_producto, 
+                    firma_responsable, firma_transportador, nombre_transportador, firma_cliente, 
+                    fecha_registro
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
+            `, params);
+            insertId = res[0]?.id;
+        } else {
+            const res = await executeQuery(`
+                INSERT INTO devoluciones (
+                    cliente_nit, factura, ciudad, almacen, fecha, ruta, placa, 
+                    items, observaciones, estado_producto, 
+                    firma_responsable, firma_transportador, nombre_transportador, firma_cliente, 
+                    fecha_registro
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, params);
+            insertId = res.lastInsertRowid;
+        }
+
+        // Procesar movimientos de inventario si el destino es Reintegro
+        for (const item of body.items) {
+            if (item.destino === 'Reintegro') {
+                const unitsPerBox = Number(item.unidades_por_caja || 1);
+                const totalUnits = Number(item.unidades || 0) + (Number(item.cajas || 0) * unitsPerBox);
+                
+                if (totalUnits > 0) {
+                    // Si el producto no existe en el catálogo, crearlo como temporal/nuevo para prevenir errores
+                    const prodExists = await executeQuery('SELECT codigo FROM productos WHERE codigo = ?', [item.codigo]);
+                    if (prodExists.length === 0) {
+                        await executeQuery(`
+                            INSERT INTO productos (codigo, descripcion, peso, valor_venta, marca, alto, largo, ancho, unidad_compra, unidad_consumo) 
+                            VALUES (?, ?, 1.0, 100, 'GENERICA', 10.0, 10.0, 10.0, 'Und', 'Und')
+                        `, [item.codigo, item.descripcion || 'PRODUCTO DEVOLUCION (NUEVO)']);
+                    }
+
+                    // Validar volumen en la posición destino antes del movimiento
+                    await validarDimensionesYVolumen(item.codigo, totalUnits, item.ubicacion || 'V010110');
+
+                    // Registrar movimiento IN
+                    await executeQuery(`
+                        INSERT INTO inventario_movimientos (codigo_producto, tipo, documento_referencia, fecha, cantidad, ubicacion)
+                        VALUES (?, 'IN', ?, ?, ?, ?)
+                    `, [
+                        item.codigo,
+                        `DEV-${insertId || 'TEMP'}`,
+                        body.fecha || fechaActual,
+                        totalUnits,
+                        item.ubicacion || 'V010110'
+                    ]);
+                }
+            }
+        }
+
+        return { success: true, id: insertId };
+    },
+
+    // ponytail: mark item as delivered to client, no inventory movement
+    async marcarSalidaDevolucionItem(id, codigo_producto, itemIndex) {
+        const dev = await this.getDevolucionById(id);
+        if (!dev) throw new Error(`Devolución ${id} no encontrada`);
+
+        const items = Array.isArray(dev.items) ? dev.items : JSON.parse(dev.items);
+        const idx = Number(itemIndex);
+        if (idx < 0 || idx >= items.length) throw new Error('Índice de ítem fuera de rango');
+
+        const item = items[idx];
+        if (item.codigo !== codigo_producto) throw new Error('Código de producto no coincide');
+        if (item.destino !== 'Devolución a Cliente') throw new Error('Destino incorrecto');
+
+        item.salida_registrada = true;
+        item.fecha_salida = new Date().toISOString().split('T')[0];
+
+        await executeQuery('UPDATE devoluciones SET items = ? WHERE id = ?', [JSON.stringify(items), id]);
+        return { success: true };
     }
 
 };
+

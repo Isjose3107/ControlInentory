@@ -1,5 +1,5 @@
 const http = require('http');
-const fs = require('fs');
+const fs = require('fs/promises');
 const path = require('path');
 const db = require('./db.js');
 const nodemailer = require('nodemailer');
@@ -96,18 +96,11 @@ function isAuthorized(req) {
 
 
 
-function getRequestBody(req) {
-    return new Promise((resolve, reject) => {
-        let body = '';
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', () => {
-            try {
-                resolve(body ? JSON.parse(body) : {});
-            } catch (err) {
-                reject(err);
-            }
-        });
-    });
+// ponytail: modern for-await stream reader
+async function getRequestBody(req) {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    return body ? JSON.parse(body) : {};
 }
 
 function sendJSON(res, status, data) {
@@ -375,10 +368,61 @@ const apiRoutes = {
         }
         const result = await db.aplicarAjusteRegularizacion(body.ajustes, body.zona);
         return sendJSON(res, 200, result);
+    },
+
+    // DEVOLUCIONES DE MERCANCÍA
+    'GET /api/devoluciones': async (req, res) => {
+        try {
+            const rows = await db.getDevoluciones();
+            return sendJSON(res, 200, rows);
+        } catch (err) {
+            return sendJSON(res, 500, { error: err.message });
+        }
+    },
+    'GET /api/devoluciones/detalle': async (req, res, parsedUrl) => {
+        const id = parsedUrl.searchParams.get('id');
+        if (!id) {
+            return sendJSON(res, 400, { error: 'Falta el parámetro id' });
+        }
+        try {
+            const row = await db.getDevolucionById(id);
+            if (!row) {
+                return sendJSON(res, 404, { error: 'Devolución no encontrada' });
+            }
+            return sendJSON(res, 200, row);
+        } catch (err) {
+            return sendJSON(res, 500, { error: err.message });
+        }
+    },
+    'POST /api/devoluciones': async (req, res) => {
+        try {
+            const body = await getRequestBody(req);
+            if (!body.cliente_nit || !body.factura || !body.items || !Array.isArray(body.items)) {
+                return sendJSON(res, 400, { error: 'Datos de devolución incompletos o inválidos.' });
+            }
+            const result = await db.createDevolucion(body);
+            return sendJSON(res, 200, result);
+        } catch (err) {
+            return sendJSON(res, 500, { error: err.message });
+        }
+    },
+    // ponytail: simple mark-as-delivered, no inventory movement needed
+    'POST /api/devoluciones/marcar-salida': async (req, res) => {
+        try {
+            const body = await getRequestBody(req);
+            if (!body.id || !body.codigo_producto || body.item_index === undefined) {
+                return sendJSON(res, 400, { error: 'Datos incompletos para marcar salida.' });
+            }
+            const result = await db.marcarSalidaDevolucionItem(body.id, body.codigo_producto, body.item_index);
+            return sendJSON(res, 200, result);
+        } catch (err) {
+            return sendJSON(res, 500, { error: err.message });
+        }
     }
 };
 
 const server = http.createServer(async (req, res) => {
+    console.log(`[REQ] ${req.method} ${req.url}`);
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -435,20 +479,21 @@ const server = http.createServer(async (req, res) => {
 
     const contentType = mimeTypes[extname] || 'application/octet-stream';
 
-    fs.readFile(filePath, (error, content) => {
-        if (error) {
-            if (error.code === 'ENOENT') {
-                res.writeHead(404);
-                res.end('Archivo no encontrado');
-            } else {
-                res.writeHead(500);
-                res.end('Error interno de servidor: ' + error.code);
-            }
+    // ponytail: use await fs.readFile natively inside async server request handler
+    try {
+        const content = await fs.readFile(filePath);
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(content, 'utf-8');
+    } catch (error) {
+        console.error('Error sirviendo estático:', error);
+        if (error.code === 'ENOENT') {
+            res.writeHead(404);
+            res.end('Archivo no encontrado');
         } else {
-            res.writeHead(200, { 'Content-Type': contentType });
-            res.end(content, 'utf-8');
+            res.writeHead(500);
+            res.end('Error interno de servidor: ' + error.code);
         }
-    });
+    }
 });
 
 const PORT = process.env.PORT || 3000;

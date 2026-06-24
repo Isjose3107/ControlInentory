@@ -107,7 +107,7 @@ body {
 }
 
 .nav-section-title {
-    font-size: 1.5rem;
+    font-size: 1.7rem;
     text-transform: uppercase;
     color: black;
     font-weight: 900;
@@ -122,6 +122,7 @@ body {
     padding: 12px 16px;
     color: var(--text-secondary);
     text-decoration: none;
+    font-size: 1.0rem;
     font-weight: 500;
     border-radius: var(--radius-md);
     margin-bottom: 4px;
@@ -1404,4 +1405,423 @@ textarea.form-control {
         transform: translateY(0);
         opacity: 1;
     }
+}
+
+/* --- DEVOLUCIONES DE MERCANCÍA & ESTILOS RANSA --- */
+
+.ransa-form-container {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
+    padding: 30px;
+    border-radius: var(--radius-lg);
+}
+
+.ransa-form-header {
+    display: grid;
+    grid-template-columns: 1.5fr 2.5fr 1fr 1.5fr;
+    gap: 15px;
+    border-bottom: 2px solid var(--text-primary);
+    padding-bottom: 20px;
+    margin-bottom: 25px;
+    align-items: center;
+}
+
+@media (max-width: 768px) {
+    .ransa-form-header {
+        grid-template-columns: 1fr;
+        text-align: center;
+        gap: 10px;
+    }
+
+    .ransa-header-right,
+    .ransa-header-left {
+        justify-content: center;
+        text-align: center;
+    }
+}
+
+.ransa-header-left {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.ransa-logo-print {
+    font-size: 2.2rem;
+    font-weight: 1000;
+    color: #1e3a8a;
+    /* Dark Blue style */
+    letter-spacing: -1px;
+}
+
+.ransa-header-center {
+    text-align: center;
+}
+
+.ransa-form-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.ransa-form-code {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.ransa-header-right {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: right;
+}
+
+.ransa-consecutivo-box {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 10px 15px;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+}
+
+.ransa-consecutivo-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.ransa-consecutivo-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--color-danger);
+}
+
+/* Tabla de ítems con scroll y diseño premium */
+.ransa-items-table th,
+.ransa-items-table td {
+    vertical-align: top;
+}
+
+.ransa-items-table select.form-control,
+.ransa-items-table input.form-control {
+    padding: 6px 10px;
+    font-size: 0.875rem;
+    height: auto;
+}
+
+/* Panel de firmas */
+.signatures-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-top: 15px;
+}
+
+.signature-card {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.signature-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+
+.canvas-container {
+    background-color: white;
+    border: 2px dashed #cbd5e1;
+    border-radius: var(--radius-sm);
+    width: 100%;
+    height: 152px;
+    position: relative;
+    cursor: crosshair;
+}
+
+.canvas-container canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.signatures-grid-view {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-top: 15px;
+}
+
+.signature-view-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 15px;
+    background: var(--bg-surface-elevated);
+    text-align: center;
+}
+
+.signature-view-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 6px;
+}
+
+.signature-img-container {
+    background: white;
+    border-radius: var(--radius-sm);
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-color);
+}
+
+.signature-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* --- ESTILOS DE IMPRESIÓN PARA DEVOLUCIONES --- */
+.print-devolucion-container {
+    padding: 15px;
+    color: #000;
+    background: #fff;
+    font-family: Arial, sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.35;
+}
+
+.print-ransa-header {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr 1fr;
+    border-bottom: 2.5px solid #000;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    align-items: center;
+}
+
+.print-ransa-logo-text {
+    font-size: 2.3rem;
+    font-weight: bold;
+    color: #000;
+    letter-spacing: -1px;
+}
+
+.print-ransa-title-section {
+    text-align: center;
+}
+
+.print-ransa-title-section h2 {
+    font-size: 1.45rem;
+    font-weight: 800;
+    margin: 0;
+}
+
+.print-ransa-meta-section {
+    display: flex;
+    flex-direction: column;
+    text-align: right;
+    font-size: 7.5pt;
+    font-weight: bold;
+}
+
+.print-ransa-consecutivo-box {
+    border: 2px solid #000;
+    padding: 6px;
+    text-align: center;
+}
+
+.print-ransa-consecutivo-label {
+    display: block;
+    font-size: 6.5pt;
+    font-weight: bold;
+}
+
+.print-ransa-consecutivo-value {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #000;
+}
+
+.print-info-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.print-info-table td {
+    padding: 4px 6px;
+    border: none !important;
+}
+
+.print-dev-table th {
+    background-color: #f1f5f9 !important;
+    color: #000 !important;
+    border: 1px solid #000 !important;
+}
+
+.print-dev-table td {
+    border: 1px solid #000 !important;
+}
+
+.print-dev-bottom-grid {
+    display: grid;
+    grid-template-columns: 2.5fr 1.5fr;
+    gap: 20px;
+    margin-top: 15px;
+}
+
+.print-signatures-dev {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+    margin-top: 40px;
+}
+
+.print-sig-col {
+    text-align: center;
+}
+
+.print-sig-box {
+    border-bottom: 1px solid #000;
+    height: 70px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.print-sig-img {
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.print-sig-line {
+    font-size: 8pt;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+/* Ocultar elementos innecesarios al imprimir */
+@media print {
+    .print-devolucion-wrapper-double {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 100vh;
+        box-sizing: border-box;
+        page-break-after: avoid;
+        page-break-before: avoid;
+    }
+
+    .print-devolucion-container {
+        width: 100%;
+        height: 48%;
+        margin: 0;
+        padding: 5px 0;
+        background: transparent;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        page-break-inside: avoid;
+    }
+
+    /* compact rules to fit on letter/A4 page twice */
+    .print-devolucion-container,
+    .print-devolucion-container table,
+    .print-devolucion-container td,
+    .print-devolucion-container th {
+        font-size: 8pt !important;
+    }
+
+    .print-ransa-header {
+        margin-bottom: 5px !important;
+        padding-bottom: 5px !important;
+    }
+
+    .print-ransa-logo-text {
+        font-size: 1.8rem !important;
+    }
+
+    .print-ransa-title-section h2 {
+        font-size: 1.15rem !important;
+    }
+
+    .print-ransa-consecutivo-value {
+        font-size: 1.2rem !important;
+        color: #000 !important;
+    }
+
+    .print-info-table td {
+        padding: 2px 4px !important;
+    }
+
+    .print-table {
+        margin-top: 5px !important;
+        margin-bottom: 5px !important;
+    }
+
+    .print-table th,
+    .print-table td {
+        padding: 4px !important;
+    }
+
+    .print-dev-bottom-grid {
+        margin-top: 5px !important;
+        gap: 10px !important;
+    }
+
+    .print-observaciones-block p {
+        min-height: 25px !important;
+        margin-top: 2px !important;
+        font-size: 8pt !important;
+        padding: 2px 4px !important;
+    }
+
+    .print-signatures-dev {
+        margin-top: 10px !important;
+        gap: 15px !important;
+    }
+
+    .print-sig-box {
+        height: 40px !important;
+        margin-bottom: 3px !important;
+    }
+
+    .print-copy-divider {
+        display: block !important;
+        width: 100%;
+        border-top: 1.5px dashed #000;
+        text-align: center;
+        font-size: 7.5pt;
+        color: #000;
+        margin: 5px 0;
+        height: 15px;
+        line-height: 15px;
+        box-sizing: border-box;
+    }
+}
+
+.print-copy-divider {
+    display: none;
 }

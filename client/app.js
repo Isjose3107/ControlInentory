@@ -20,26 +20,45 @@ import './js/views/recibo.js';
 import './js/views/despacho.js';
 import './js/views/dashboard.js';
 import './js/views/inventario.js';
+import './js/views/devoluciones.js';
+import './js/views/devoluciones_cliente.js';
 
 window.pendingViewChange = null;
 window.pendingTabChange = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+console.log('HABITAD WMS: app.js loaded');
+
+function init() {
+    console.log('HABITAD WMS: init() started');
     initNavigation();
     initDateInputs();
     loadCatalogos();
     if (window.loadDashboardStats) {
+        console.log('HABITAD WMS: loading dashboard stats');
         window.loadDashboardStats();
     }
     configFormObservers();
-});
+    console.log('HABITAD WMS: init() complete');
+}
+
+console.log('HABITAD WMS: readyState =', document.readyState);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('HABITAD WMS: DOMContentLoaded fired');
+        init();
+    });
+} else {
+    init();
+}
 
 function initNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
+    console.log('HABITAD WMS: Found nav items count =', navItems.length);
     navItems.forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             const viewName = item.getAttribute('data-view');
+            console.log('HABITAD WMS: Nav item clicked for view =', viewName);
             showView(viewName);
 
             navItems.forEach(i => i.classList.remove('active'));
@@ -82,7 +101,9 @@ export function showView(viewName) {
         ventas: 'Ventas y Remisiones',
         productos: 'Catálogo de Productos',
         clientes: 'Gestión de Clientes',
-        proveedores: 'Gestión de Proveedores'
+        proveedores: 'Gestión de Proveedores',
+        devoluciones: 'Devolución de Mercancía',
+        devoluciones_cliente: 'Salida Devolución Cliente'
     };
 
     const titleEl = document.getElementById('viewTitle');
@@ -117,6 +138,10 @@ export function showView(viewName) {
             inputFecha.value = new Date().toISOString().split('T')[0];
         }
         if (window.loadMontacarguistaConsolidado) window.loadMontacarguistaConsolidado();
+    } else if (viewName === 'devoluciones') {
+        if (window.initDevoluciones) window.initDevoluciones();
+    } else if (viewName === 'devoluciones_cliente') {
+        if (window.initDevolucionesCliente) window.initDevolucionesCliente();
     }
 }
 

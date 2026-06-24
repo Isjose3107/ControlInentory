@@ -731,6 +731,162 @@ export function imprimirDocumento(tipoDoc) {
             </div>
         `;
     }
+    else if (tipoDoc === 'DEVOLUCION') {
+        const dev = state.currentDevolucionPrintData;
+        if (!dev) {
+            alert('No hay datos de devolución para imprimir.');
+            return;
+        }
+
+        const clientName = dev.cliente_nombre || dev.cliente_nit || 'No especificado';
+        
+        let tableRowsHTML = '';
+        dev.items.forEach((item, idx) => {
+            const unitsPerBox = Number(item.unidades_por_caja || 1);
+            const totalUnits = Number(item.unidades || 0) + (Number(item.cajas || 0) * unitsPerBox);
+            tableRowsHTML += `
+                <tr>
+                    <td style="text-align:center;">${idx + 1}</td>
+                    <td><strong>${item.codigo}</strong></td>
+                    <td>${item.descripcion || '-'}</td>
+                    <td style="text-align:center;">${item.cajas || 0}</td>
+                    <td style="text-align:center;">${item.unidades || 0}</td>
+                    <td style="text-align:center; font-weight:bold;">${totalUnits}</td>
+                    <td>${item.causal || '-'}</td>
+                    <td>
+                        <strong>${item.destino}</strong>
+                        ${item.ubicacion ? `<br><span style="font-size:8.5pt; color:#444;">📍 ${item.ubicacion}</span>` : ''}
+                    </td>
+                </tr>
+            `;
+        });
+
+        const buildCopyHTML = (copyTitle) => `
+            <div class="print-devolucion-container">
+                <!-- Encabezado estilo RANSA -->
+                <div class="print-ransa-header">
+                    <div class="print-ransa-logo-section">
+                        <span class="print-ransa-logo-text">R RANSA</span>
+                    </div>
+                    <div class="print-ransa-title-section">
+                        <h2>DEVOLUCIÓN DE MERCANCIA</h2>
+                        <span style="font-size: 8pt; color: #555;">Código: FR-ALM-023</span>
+                        <div style="font-size: 8pt; font-weight: bold; margin-top: 2px; text-transform: uppercase; color: #111;">${copyTitle}</div>
+                    </div>
+                    <div class="print-ransa-meta-section">
+                        <span>VERSIÓN # 4</span>
+                        <span>PÁGINA 1 DE 1</span>
+                    </div>
+                    <div class="print-ransa-consecutivo-section">
+                        <div class="print-ransa-consecutivo-box">
+                            <span class="print-ransa-consecutivo-label">Nº CONSECUTIVO</span>
+                            <span class="print-ransa-consecutivo-value">${dev.id}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detalles de la Devolución -->
+                <div class="print-details-grid">
+                    <div class="print-details-block" style="grid-column: span 2;">
+                        <table class="print-info-table">
+                            <tr>
+                                <td style="width:15%;"><strong>CLIENTE:</strong></td>
+                                <td style="width:45%; border-bottom:1px solid #000;">${clientName}</td>
+                                <td style="width:15%;"><strong>No. FACTURA:</strong></td>
+                                <td style="width:25%; border-bottom:1px solid #000;">${dev.factura || '-'}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>CIUDAD:</strong></td>
+                                <td style="border-bottom:1px solid #000;">${dev.ciudad || '-'}</td>
+                                <td><strong>ALMACÉN:</strong></td>
+                                <td style="border-bottom:1px solid #000;">${dev.almacen || '-'}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>FECHA RECIBO:</strong></td>
+                                <td style="border-bottom:1px solid #000;">${dev.fecha || '-'}</td>
+                                <td><strong>RUTA:</strong></td>
+                                <td style="border-bottom:1px solid #000;">${dev.ruta || '-'}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>PLACA:</strong></td>
+                                <td style="border-bottom:1px solid #000;" colspan="3">${dev.placa || '-'}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tabla de Productos -->
+                <table class="print-table print-dev-table" style="margin-top:15px;">
+                    <thead>
+                        <tr>
+                            <th style="width:5%; text-align:center;">Item</th>
+                            <th style="width:15%;">Código</th>
+                            <th style="width:30%;">Descripción Producto</th>
+                            <th style="width:10%; text-align:center;">Cajas</th>
+                            <th style="width:10%; text-align:center;">Unidades</th>
+                            <th style="width:10%; text-align:center;">Cant. Total (Uds)</th>
+                            <th style="width:10%;">Causal</th>
+                            <th style="width:10%;">Destino</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRowsHTML}
+                    </tbody>
+                </table>
+
+                <!-- Observaciones y Estado -->
+                <div class="print-dev-bottom-grid">
+                    <div class="print-observaciones-block">
+                        <strong>OBSERVACIONES:</strong>
+                        <p style="margin-top: 5px; font-size: 9pt; min-height: 50px; background: #f8fafc; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+                            ${dev.observaciones || 'Sin observaciones.'}
+                        </p>
+                    </div>
+                    <div class="print-estado-block">
+                        <strong>ESTADO DEL PRODUCTO:</strong>
+                        <div style="margin-top:5px; font-size:9pt; line-height: 1.4;">
+                            <div style="font-weight: ${dev.estado_producto === 'Bueno' ? 'bold' : 'normal'}">${dev.estado_producto === 'Bueno' ? '☑' : '☐'} 1-Bueno: En buen estado</div>
+                            <div style="font-weight: ${dev.estado_producto === 'Averiado' ? 'bold' : 'normal'}">${dev.estado_producto === 'Averiado' ? '☑' : '☐'} 2-Averiado: Avería almacén/transporte</div>
+                            <div style="font-weight: ${dev.estado_producto === 'No Conforme' ? 'bold' : 'normal'}">${dev.estado_producto === 'No Conforme' ? '☑' : '☐'} 3-No Conforme: Deterioro en punto venta</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Firmas Electrónicas -->
+                <div class="print-signatures-dev">
+                    <div class="print-sig-col">
+                        <div class="print-sig-box">
+                            ${dev.firma_responsable ? `<img src="${dev.firma_responsable}" class="print-sig-img">` : ''}
+                        </div>
+                        <div class="print-sig-line">RESPONSABLE DEL RECIBO</div>
+                    </div>
+                    <div class="print-sig-col">
+                        <div class="print-sig-box">
+                            ${dev.firma_transportador ? `<img src="${dev.firma_transportador}" class="print-sig-img">` : ''}
+                        </div>
+                        <div style="font-size:8pt; text-align:center; font-weight:bold; margin-bottom: 2px;">Nombre: ${dev.nombre_transportador || '-'}</div>
+                        <div class="print-sig-line">NOMBRE DEL TRANSPORTADOR</div>
+                    </div>
+                    <div class="print-sig-col">
+                        <div class="print-sig-box">
+                            ${dev.firma_cliente ? `<img src="${dev.firma_cliente}" class="print-sig-img">` : ''}
+                        </div>
+                        <div class="print-sig-line">RECIBIDO DEL CLIENTE</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        htmlContent = `
+            <div class="print-devolucion-wrapper-double">
+                ${buildCopyHTML('ORIGINAL - CONTROL RANSA')}
+                <div class="print-copy-divider">
+                    <span>✂ ---------------------------------------------------- CORTE AQUÍ ---------------------------------------------------- ✂</span>
+                </div>
+                ${buildCopyHTML('COPIA - REGISTRO CLIENTE')}
+            </div>
+        `;
+    }
 
     printContainer.innerHTML = htmlContent;
 
