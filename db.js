@@ -134,7 +134,8 @@ const tableDefinitions = [
         firma_transportador TEXT,
         nombre_transportador TEXT,
         firma_cliente TEXT,
-        fecha_registro TEXT
+        fecha_registro TEXT,
+        fotos TEXT
     )`,
     `CREATE INDEX IF NOT EXISTS idx_movimientos_producto ON inventario_movimientos(codigo_producto)`,
     `CREATE INDEX IF NOT EXISTS idx_movimientos_ubicacion ON inventario_movimientos(ubicacion)`,
@@ -157,7 +158,8 @@ async function initTables() {
         { table: 'usuarios', column: 'correo', type: 'TEXT' },
         { table: 'ventas', column: 'auxiliar', type: 'TEXT' },
         { table: 'productos', column: 'unidad_compra', type: 'TEXT', def: "DEFAULT 'Und'" },
-        { table: 'productos', column: 'unidad_consumo', type: 'TEXT', def: "DEFAULT 'Und'" }
+        { table: 'productos', column: 'unidad_consumo', type: 'TEXT', def: "DEFAULT 'Und'" },
+        { table: 'devoluciones', column: 'fotos', type: 'TEXT' }
     ];
 
     for (const item of alterColumns) {
@@ -991,6 +993,9 @@ module.exports = {
             if (typeof r.items === 'string') {
                 r.items = JSON.parse(r.items);
             }
+            if (typeof r.fotos === 'string') {
+                r.fotos = JSON.parse(r.fotos);
+            }
         });
         return rows;
     },
@@ -1003,8 +1008,13 @@ module.exports = {
             WHERE d.id = ?
         `, [id]);
         const row = rows[0];
-        if (row && typeof row.items === 'string') {
-            row.items = JSON.parse(row.items);
+        if (row) {
+            if (typeof row.items === 'string') {
+                row.items = JSON.parse(row.items);
+            }
+            if (typeof row.fotos === 'string') {
+                row.fotos = JSON.parse(row.fotos);
+            }
         }
         return row;
     },
@@ -1026,7 +1036,8 @@ module.exports = {
             body.firma_transportador,
             body.nombre_transportador,
             body.firma_cliente,
-            fechaActual
+            fechaActual,
+            JSON.stringify(body.fotos || [])
         ];
 
         let insertId = null;
@@ -1036,8 +1047,8 @@ module.exports = {
                     cliente_nit, factura, ciudad, almacen, fecha, ruta, placa, 
                     items, observaciones, estado_producto, 
                     firma_responsable, firma_transportador, nombre_transportador, firma_cliente, 
-                    fecha_registro
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    fecha_registro, fotos
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
             `, params);
             insertId = res[0]?.id;
@@ -1047,8 +1058,8 @@ module.exports = {
                     cliente_nit, factura, ciudad, almacen, fecha, ruta, placa, 
                     items, observaciones, estado_producto, 
                     firma_responsable, firma_transportador, nombre_transportador, firma_cliente, 
-                    fecha_registro
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    fecha_registro, fotos
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, params);
             insertId = res.lastInsertRowid;
         }

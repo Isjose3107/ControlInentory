@@ -11,6 +11,7 @@ import {
 
 let devRowCounter = 0;
 let activeDevolucion = null;
+let devFotosBase64 = [];
 let signaturePads = {
     responsable: { drawing: false, lastX: 0, lastY: 0, isDirty: false, canvas: null, ctx: null },
     transportador: { drawing: false, lastX: 0, lastY: 0, isDirty: false, canvas: null, ctx: null },
@@ -445,7 +446,8 @@ export async function guardarDevolucion() {
             nombre_transportador,
             firma_responsable,
             firma_transportador,
-            firma_cliente
+            firma_cliente,
+            fotos: devFotosBase64
         };
 
         const res = await fetchAPI('/devoluciones', 'POST', payload);
@@ -467,6 +469,14 @@ export async function guardarDevolucion() {
 }
 
 export function limpiarFormDevolucion() {
+    // ponytail: reset optional returns photos
+    devFotosBase64 = [];
+    const fotosContainer = document.getElementById('dev-fotos-preview-container');
+    if (fotosContainer) {
+        fotosContainer.innerHTML = '';
+        fotosContainer.style.display = 'none';
+    }
+
     // Resetear textos
     const fields = ['dev-factura', 'dev-ciudad', 'dev-almacen', 'dev-ruta', 'dev-placa', 'dev-observaciones', 'dev-nombre-transportador'];
     fields.forEach(f => {
@@ -604,6 +614,25 @@ export async function verDetalleDevolucion(id) {
         document.getElementById('img-firma-transportador').src = dev.firma_transportador || '';
         document.getElementById('img-firma-cliente').src = dev.firma_cliente || '';
 
+        // Cargar fotos si existen
+        const fotosSection = document.getElementById('modal-dev-fotos-section');
+        const fotosContainer = document.getElementById('modal-dev-fotos-container');
+        if (fotosSection && fotosContainer) {
+            fotosContainer.innerHTML = '';
+            if (dev.fotos && Array.isArray(dev.fotos) && dev.fotos.length > 0) {
+                dev.fotos.forEach(foto => {
+                    fotosContainer.innerHTML += `
+                        <div class="foto-detail-card" style="width: 150px; height: 150px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color); cursor: pointer;" onclick="window.open('${foto}', '_blank')">
+                            <img src="${foto}" style="width: 100%; height: 100%; object-fit: cover;" title="Haga clic para ampliar">
+                        </div>
+                    `;
+                });
+                fotosSection.style.display = 'block';
+            } else {
+                fotosSection.style.display = 'none';
+            }
+        }
+
         // Mostrar modal
         document.getElementById('dev-detail-modal').style.display = 'flex';
     } catch (err) {
@@ -656,10 +685,26 @@ export async function cargarFacturaParaDevolucion() {
             return;
         }
 
-        // Auto-poblar Cliente
+        // ponytail: robustly find and match client by NIT code or name
         const clientSelect = document.getElementById('dev-cliente');
         if (clientSelect) {
-            clientSelect.value = venta.cliente_nit || '';
+            const saleNit = (venta.cliente_nit || '').trim();
+            const client = state.clientes.find(c => 
+                String(c.nit).trim().toLowerCase() === saleNit.toLowerCase() ||
+                c.nombre.toLowerCase() === (venta.cliente_nombre || '').toLowerCase()
+            );
+
+            if (client) {
+                clientSelect.value = client.nit;
+            } else {
+                // If not found in the loaded list, append a temporary option so that the client name matches and is displayed
+                const tempOpt = document.createElement('option');
+                tempOpt.value = venta.cliente_nit;
+                tempOpt.textContent = venta.cliente_nombre || venta.cliente_nit;
+                tempOpt.selected = true;
+                clientSelect.appendChild(tempOpt);
+                clientSelect.value = venta.cliente_nit;
+            }
             clientSelect.disabled = true; // Bloquear
         }
 
@@ -769,6 +814,54 @@ export async function cargarFacturaParaDevolucion() {
     }
 }
 
+// --- FOTOGRAFÍAS DE DEVOLUCIONES (OPCIONAL) ---
+export function procesarFotosDevolucion() {
+    const input = document.getElementById('dev-input-fotos');
+    const container = document.getElementById('dev-fotos-preview-container');
+    if (!input || !container) return;
+
+    const files = Array.from(input.files);
+    if (files.length === 0) return;
+
+    container.style.display = 'flex';
+
+    files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64 = e.target.result;
+            if (devFotosBase64.includes(base64)) return;
+            devFotosBase64.push(base64);
+
+            const div = document.createElement('div');
+            div.className = 'foto-preview-card';
+            div.style.position = 'relative';
+            div.style.width = '100px';
+            div.style.height = '100px';
+            div.style.borderRadius = '6px';
+            div.style.overflow = 'hidden';
+            div.style.border = '1px solid var(--border-color)';
+
+            div.innerHTML = `
+                <img src="${base64}" style="width: 100%; height: 100%; object-fit: cover;">
+                <button type="button" style="position: absolute; top: 4px; right: 4px; background: rgba(239, 68, 68, 0.9); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onclick="window.eliminarFotoDevolucion(this, '${base64.replace(/'/g, "\\'")}')">✕</button>
+            `;
+            container.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+    });
+
+    input.value = '';
+}
+
+export function eliminarFotoDevolucion(btn, base64) {
+    devFotosBase64 = devFotosBase64.filter(f => f !== base64);
+    btn.parentElement.remove();
+    const container = document.getElementById('dev-fotos-preview-container');
+    if (devFotosBase64.length === 0 && container) {
+        container.style.display = 'none';
+    }
+}
+
 // --- BINDING AL ENTORNO GLOBAL ---
 window.initDevoluciones = initDevoluciones;
 window.switchDevTab = switchDevTab;
@@ -787,4 +880,6 @@ window.cerrarDetalleDevolucion = cerrarDetalleDevolucion;
 window.imprimirDevolucionActual = imprimirDevolucionActual;
 window.imprimirDevolucionDirecto = imprimirDevolucionDirecto;
 window.cargarFacturaParaDevolucion = cargarFacturaParaDevolucion;
+window.procesarFotosDevolucion = procesarFotosDevolucion;
+window.eliminarFotoDevolucion = eliminarFotoDevolucion;
 

@@ -1208,7 +1208,14 @@
 
                 <!-- 11. VIEW: CLIENTES -->
                 <section id="view-clientes" class="view-pane">
-                    <div class="card">
+                    <div class="flex-row gap-2 mb-3">
+                        <button class="btn btn-primary" id="cli-tab-formulario"
+                            onclick="switchCliTab('formulario')">Crear / Actualizar</button>
+                        <button class="btn btn-secondary" id="cli-tab-masiva" onclick="switchCliTab('masiva')">Subida
+                            Masiva (Excel/CSV)</button>
+                    </div>
+
+                    <div id="cli-pane-formulario" class="card">
                         <div class="card-header">
                             <h2>Crear / Actualizar Cliente</h2>
                         </div>
@@ -1239,6 +1246,61 @@
                             </div>
                             <button class="btn btn-success mt-3" onclick="guardarCliente()">Guardar Cliente</button>
                             <button class="btn btn-secondary mt-3 mr-2" onclick="limpiarFormCliente()">Limpiar</button>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: SUBIDA MASIVA -->
+                    <div id="cli-pane-masiva" class="card" style="display:none;">
+                        <div class="card-header">
+                            <h2>Subir Listado de Clientes Masivamente</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4 alert-info">
+                                <h3 style="color: #60a5fa; font-size: 1.1rem; margin-bottom: 8px;">Carga de Clientes en Excel o CSV:</h3>
+                                <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.4;">
+                                    Puede subir su maestro de clientes en formato <strong>Excel (.xlsx, .xls)</strong> o <strong>CSV (.csv)</strong>.
+                                    El sistema detecta automáticamente las columnas mediante el análisis de encabezados (ej: <i>Cédula o NIT, Nombre / Razón Social, Teléfono, Dirección, Correo</i>, etc.).
+                                </p>
+                                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">
+                                    * Los campos de NIT/cédula y nombre son obligatorios.
+                                </p>
+                                <button class="btn btn-secondary btn-sm mt-3"
+                                    onclick="descargarPlantillaCSVClientes()">Descargar Plantilla Excel</button>
+                            </div>
+
+                            <div class="form-group mb-4">
+                                <label for="csv-file-input-cli">Seleccionar Archivo (Excel o CSV)</label>
+                                <input type="file" id="csv-file-input-cli" class="form-control"
+                                    accept=".csv, .xlsx, .xls" onchange="procesarArchivoCSVClientes()">
+                            </div>
+
+                            <!-- Vista previa de importación -->
+                            <div id="csv-preview-panel-cli" style="display:none;" class="mt-4">
+                                <h3 style="font-size: 1.1rem; margin-bottom: 12px;">Vista Previa de Clientes a Importar</h3>
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>Cédula o NIT</th>
+                                                <th>Nombre / Razón Social</th>
+                                                <th>Teléfono</th>
+                                                <th>Dirección</th>
+                                                <th>Correo</th>
+                                                <th>Estado de Validación</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="csv-preview-body-cli">
+                                            <!-- Dinámico -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-right mt-3">
+                                    <button class="btn btn-secondary mr-2"
+                                        onclick="cancelarImportacionCSVClientes()">Cancelar</button>
+                                    <button class="btn btn-success" id="btnConfirmarImportacionCSVCli"
+                                        onclick="confirmarImportacionCSVClientes()" disabled>Confirmar e Importar Clientes</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1524,6 +1586,25 @@
                                 </div>
                             </div>
 
+                            <!-- Fotografías de la Devolución (Opcional) -->
+                            <h3 class="mt-4 mb-2">Fotografías de la Devolución (Opcional)</h3>
+                            <div class="card p-3 mb-4" style="background: var(--bg-surface-elevated); border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+                                <div class="form-row align-items-center">
+                                    <div class="form-group flex-1" style="margin-bottom: 0;">
+                                        <label for="dev-input-fotos" style="cursor: pointer; display: inline-flex; align-items: center; gap: 8px;" class="btn btn-secondary">
+                                            📷 Tomar Fotos o Adjuntar
+                                        </label>
+                                        <input type="file" id="dev-input-fotos" accept="image/*" multiple style="display: none;" onchange="window.procesarFotosDevolucion()">
+                                    </div>
+                                    <div class="flex-2 text-muted" style="font-size: 0.85rem;">
+                                        Puede adjuntar múltiples fotos de la mercancía devuelta (opcional).
+                                    </div>
+                                </div>
+                                <div id="dev-fotos-preview-container" class="flex-row flex-wrap gap-3 mt-3" style="display: none;">
+                                    <!-- Render dinámico de las miniaturas -->
+                                </div>
+                            </div>
+
                             <!-- Panel de Firmas Electrónicas (Requisito Crítico) -->
                             <h3 class="mt-4 mb-2">Firmas Digitales (Firma Electrónica)</h3>
                             <div class="signatures-grid">
@@ -1692,6 +1773,13 @@
                                             <img id="img-firma-cliente" class="signature-img"
                                                 alt="Firma Recibido Cliente">
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div id="modal-dev-fotos-section" class="mt-4" style="display:none;">
+                                    <h3 class="mb-2">Fotografías Adjuntas</h3>
+                                    <div id="modal-dev-fotos-container" class="flex-row flex-wrap gap-3" style="background:var(--bg-base); padding:12px; border-radius:6px; border:1px solid var(--border-color);">
+                                        <!-- Fotos dinámicas -->
                                     </div>
                                 </div>
                             </div>

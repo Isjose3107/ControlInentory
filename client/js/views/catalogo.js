@@ -645,3 +645,177 @@ window.limpiarFormCliente = limpiarFormCliente;
 window.guardarCliente = guardarCliente;
 window.editarCliente = editarCliente;
 
+// ponytail: customer bulk upload logic
+let csvParsedClients = [];
+const cliAliasMap = {
+    nit: ['nit', 'documento', 'id', 'nit cliente', 'identificacion', 'identificación', 'nit o cédula', 'nit o cedula', 'cédula o nit', 'cedula o nit', 'cédula', 'cedula'],
+    nombre: ['nombre', 'tercero', 'cliente', 'razon social', 'razón social', 'nombre / razón social', 'nombre / razon social', 'solicitante'],
+    telefono: ['telefono', 'teléfono', 'celular', 'tel', 'contacto'],
+    direccion: ['direccion', 'dirección', 'dir', 'ubicacion', 'ubicación'],
+    correo: ['correo', 'email', 'e-mail', 'mail', 'correo electronico', 'correo electrónico']
+};
+
+export function switchCliTab(tab) {
+    const btnForm = document.getElementById('cli-tab-formulario');
+    const btnMasiva = document.getElementById('cli-tab-masiva');
+    const paneForm = document.getElementById('cli-pane-formulario');
+    const paneMasiva = document.getElementById('cli-pane-masiva');
+
+    if (tab === 'formulario') {
+        if (btnForm) btnForm.className = 'btn btn-primary';
+        if (btnMasiva) btnMasiva.className = 'btn btn-secondary';
+        if (paneForm) paneForm.style.display = 'block';
+        if (paneMasiva) paneMasiva.style.display = 'none';
+    } else {
+        if (btnForm) btnForm.className = 'btn btn-secondary';
+        if (btnMasiva) btnMasiva.className = 'btn btn-primary';
+        if (paneForm) paneForm.style.display = 'none';
+        if (paneMasiva) paneMasiva.style.display = 'block';
+    }
+}
+
+export function descargarPlantillaCSVClientes() {
+    if (window.XLSX) {
+        const data = [
+            ["NIT o Cédula", "Nombre / Razón Social", "Teléfono", "Dirección", "Correo"],
+            ["900111222", "CLIENTE DE EJEMPLO S.A.S", "3001112233", "Calle 100 # 15-20", "facturacion@ejemplo.com"],
+            ["12345678", "JUAN PEREZ", "3104445566", "Carrera 45 # 12-34", "juan.perez@gmail.com"]
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+        XLSX.writeFile(wb, "listado_clientes.xlsx");
+    } else {
+        const headers = 'nit,nombre,telefono,direccion,correo\n';
+        const rowEjemplo = '900111222,CLIENTE DE EJEMPLO S.A.S,3001112233,Calle 100 # 15-20,facturacion@ejemplo.com\n';
+        const blob = new Blob([headers + rowEjemplo], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', 'plantilla_clientes.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+
+export function procesarArchivoCSVClientes() {
+    const fileInput = document.getElementById('csv-file-input-cli');
+    if (!fileInput) return;
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    readExcelOrCSV(file, cliAliasMap, function (err, rows, colMapping) {
+        if (err) {
+            alert(`Error al procesar archivo: ${err.message}`);
+            return;
+        }
+        try {
+            csvParsedClients = parseExcelOrCSVToClients(rows, colMapping);
+            renderClientsCSVPreview();
+        } catch (parseErr) {
+            alert(`Error al parsear datos: ${parseErr.message}`);
+        }
+    });
+}
+
+function parseExcelOrCSVToClients(rows, colMapping) {
+    const list = [];
+    const startIndex = colMapping._headerIndex + 1;
+
+    for (let i = startIndex; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !Array.isArray(row) || row.length === 0) continue;
+
+        let nit = colMapping.nit !== -1 ? String(row[colMapping.nit] || '').trim() : '';
+        let nombre = colMapping.nombre !== -1 ? String(row[colMapping.nombre] || '').trim() : '';
+        let telefono = colMapping.telefono !== -1 ? String(row[colMapping.telefono] || '').trim() : '';
+        let direccion = colMapping.direccion !== -1 ? String(row[colMapping.direccion] || '').trim() : '';
+        let correo = colMapping.correo !== -1 ? String(row[colMapping.correo] || '').trim() : '';
+
+        if (!nit || !nombre) continue;
+
+        list.push({
+            nit,
+            nombre,
+            telefono: telefono || '',
+            direccion: direccion || '',
+            correo: correo || ''
+        });
+    }
+    return list;
+}
+
+function renderClientsCSVPreview() {
+    const previewPanel = document.getElementById('csv-preview-panel-cli');
+    const tbody = document.getElementById('csv-preview-body-cli');
+    const btnConfirmar = document.getElementById('btnConfirmarImportacionCSVCli');
+
+    if (!tbody || !previewPanel || !btnConfirmar) return;
+    tbody.innerHTML = '';
+
+    if (csvParsedClients.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No se encontraron clientes válidos para importar.</td></tr>';
+        btnConfirmar.disabled = true;
+        previewPanel.style.display = 'block';
+        return;
+    }
+
+    csvParsedClients.forEach(c => {
+        const yaExiste = state.clientes.some(x => String(x.nit) === String(c.nit));
+        const statusHTML = yaExiste
+            ? '<span class="badge badge-pending">Se actualizará (ya existe)</span>'
+            : '<span class="badge badge-completed">Nuevo</span>';
+
+        tbody.innerHTML += `
+            <tr>
+                <td><strong>${c.nit}</strong></td>
+                <td>${c.nombre}</td>
+                <td>${c.telefono || '-'}</td>
+                <td>${c.direccion || '-'}</td>
+                <td>${c.correo || '-'}</td>
+                <td>${statusHTML}</td>
+            </tr>
+        `;
+    });
+
+    btnConfirmar.disabled = false;
+    previewPanel.style.display = 'block';
+}
+
+export function cancelarImportacionCSVClientes() {
+    const previewPanel = document.getElementById('csv-preview-panel-cli');
+    if (previewPanel) previewPanel.style.display = 'none';
+    const fileInput = document.getElementById('csv-file-input-cli');
+    if (fileInput) fileInput.value = '';
+    csvParsedClients = [];
+}
+
+export async function confirmarImportacionCSVClientes() {
+    if (csvParsedClients.length === 0) return;
+
+    const confirmacion = confirm(`¿Confirmar la importación masiva de ${csvParsedClients.length} cliente(s)?`);
+    if (!confirmacion) return;
+
+    try {
+        for (const cli of csvParsedClients) {
+            await fetchAPI('/clientes', 'POST', cli);
+        }
+        alert('Clientes importados correctamente.');
+        cancelarImportacionCSVClientes();
+        switchCliTab('formulario');
+        loadClientes();
+        if (window.loadCatalogos) {
+            await window.loadCatalogos();
+        }
+    } catch (err) {
+        console.error(err);
+        alert(`Ocurrió un error al importar los clientes: ${err.message}`);
+    }
+}
+
+window.switchCliTab = switchCliTab;
+window.descargarPlantillaCSVClientes = descargarPlantillaCSVClientes;
+window.procesarArchivoCSVClientes = procesarArchivoCSVClientes;
+window.cancelarImportacionCSVClientes = cancelarImportacionCSVClientes;
+window.confirmarImportacionCSVClientes = confirmarImportacionCSVClientes;
+
