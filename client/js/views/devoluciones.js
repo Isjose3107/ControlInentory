@@ -672,150 +672,143 @@ export async function imprimirDevolucionDirecto(id) {
     }
 }
 
-// ponytail: load invoice/sales details by invoice number and auto-populate returns form
+// Carga el número de factura directamente en el formulario sin depender de registros de ventas previas.
+// El usuario puede complementar los datos (cliente, ciudad, almacén) manualmente.
 export async function cargarFacturaParaDevolucion() {
     const facturaInput = document.getElementById('dev-factura');
     if (!facturaInput) return;
     const numFactura = facturaInput.value.trim();
     if (!numFactura) {
-        alert('Por favor ingrese un número de factura o remisión.');
+        alert('Por favor ingrese un número de factura.');
         return;
     }
 
+    // Intentar buscar la factura en ventas registradas (opcional, no bloquea si no existe)
     try {
         const ventas = await fetchAPI('/ventas') || [];
-        const venta = ventas.find(v => v.remision.toLowerCase() === numFactura.toLowerCase());
-        if (!venta) {
-            alert(`No se encontró ninguna venta/remisión con el número: ${numFactura}`);
-            return;
-        }
+        const venta = ventas.find(v =>
+            String(v.remision || '').toLowerCase() === numFactura.toLowerCase() ||
+            String(v.factura || '').toLowerCase() === numFactura.toLowerCase()
+        );
 
-        // ponytail: robustly find and match client by NIT code or name
-        const clientSelect = document.getElementById('dev-cliente');
-        if (clientSelect) {
-            const saleNit = (venta.cliente_nit || '').trim();
-            const client = state.clientes.find(c => 
-                String(c.nit).trim().toLowerCase() === saleNit.toLowerCase() ||
-                c.nombre.toLowerCase() === (venta.cliente_nombre || '').toLowerCase()
-            );
+        if (venta) {
+            // Si existe la venta, auto-poblar datos del cliente y productos
+            const clientSelect = document.getElementById('dev-cliente');
+            if (clientSelect) {
+                const saleNit = (venta.cliente_nit || '').trim();
+                const client = state.clientes.find(c =>
+                    String(c.nit).trim().toLowerCase() === saleNit.toLowerCase() ||
+                    c.nombre.toLowerCase() === (venta.cliente_nombre || '').toLowerCase()
+                );
+                if (client) {
+                    clientSelect.value = client.nit;
+                } else if (venta.cliente_nit) {
+                    const tempOpt = document.createElement('option');
+                    tempOpt.value = venta.cliente_nit;
+                    tempOpt.textContent = venta.cliente_nombre || venta.cliente_nit;
+                    tempOpt.selected = true;
+                    clientSelect.appendChild(tempOpt);
+                    clientSelect.value = venta.cliente_nit;
+                }
+            }
 
-            if (client) {
-                clientSelect.value = client.nit;
+            // Auto-poblar Ciudad, Almacén, Ruta
+            const observaciones = venta.observaciones || '';
+            let ciudad = '';
+            let almacen = '';
+            let ruta = '';
+
+            const cavaMatch = observaciones.match(/Cava:\s*([^\s|]+)/i);
+            const bodegaMatch = observaciones.match(/Bodega:\s*([^\s|]+)/i);
+            if (cavaMatch) almacen = `Cava ${cavaMatch[1]}`;
+            if (bodegaMatch) almacen = almacen ? `${almacen} / Bodega ${bodegaMatch[1]}` : `Bodega ${bodegaMatch[1]}`;
+
+            const clientObj = state.clientes.find(c => c.nit === venta.cliente_nit);
+            if (clientObj) {
+                const textToSearch = (observaciones + ' ' + (clientObj.direccion || '') + ' ' + (clientObj.nombre || '')).toUpperCase();
+                const ciudadesConocidas = [
+                    'SINCELEJO', 'MONTERIA', 'VALLEDUPAR', 'RIOHACHA', 'MAGANGUE', 'GALAPA',
+                    'BARRANQUILLA', 'CARTAGENA', 'SANTA MARTA', 'BOGOTA', 'MEDELLIN', 'CALI',
+                    'BUCARAMANGA', 'PEREIRA', 'MANIZALES', 'ARMENIA', 'IBAGUE', 'NEIVA',
+                    'VILLAVICENCIO', 'CUCUTA', 'PASTO', 'POPAYAN', 'TUNJA', 'SABANALARGA', 'SOLEDAD'
+                ];
+                for (const city of ciudadesConocidas) {
+                    if (textToSearch.includes(city)) {
+                        ciudad = city.charAt(0) + city.slice(1).toLowerCase();
+                        break;
+                    }
+                }
+                if (!almacen && clientObj.direccion) {
+                    const prefixMatch = clientObj.direccion.match(/^([^\-]+)/);
+                    if (prefixMatch) almacen = prefixMatch[1].trim();
+                }
+            }
+
+            const rutaMatch = observaciones.match(/Ruta:\s*([^\s|]+)/i);
+            if (rutaMatch) {
+                ruta = rutaMatch[1];
             } else {
-                // If not found in the loaded list, append a temporary option so that the client name matches and is displayed
-                const tempOpt = document.createElement('option');
-                tempOpt.value = venta.cliente_nit;
-                tempOpt.textContent = venta.cliente_nombre || venta.cliente_nit;
-                tempOpt.selected = true;
-                clientSelect.appendChild(tempOpt);
-                clientSelect.value = venta.cliente_nit;
-            }
-            clientSelect.disabled = true; // Bloquear
-        }
-
-        // Auto-poblar Ciudad, Almacén, Ruta, Fecha
-        let ciudad = '';
-        let almacen = '';
-        let ruta = '';
-        const observaciones = venta.observaciones || '';
-
-        // Intentar parsear Cava y Bodega de las observaciones
-        const cavaMatch = observaciones.match(/Cava:\s*([^\s|]+)/i);
-        const bodegaMatch = observaciones.match(/Bodega:\s*([^\s|]+)/i);
-
-        if (cavaMatch) almacen = `Cava ${cavaMatch[1]}`;
-        if (bodegaMatch) almacen = almacen ? `${almacen} / Bodega ${bodegaMatch[1]}` : `Bodega ${bodegaMatch[1]}`;
-
-        // Intentar encontrar la ciudad desde las observaciones, nombre del cliente o dirección del cliente
-        const client = state.clientes.find(c => c.nit === venta.cliente_nit);
-        if (client) {
-            const textToSearch = (observaciones + ' ' + (client.direccion || '') + ' ' + (client.nombre || '')).toUpperCase();
-            const ciudadesConocidas = [
-                'SINCELEJO', 'MONTERIA', 'VALLEDUPAR', 'RIOHACHA', 'MAGANGUE', 'GALAPA',
-                'BARRANQUILLA', 'CARTAGENA', 'SANTA MARTA', 'BOGOTA', 'MEDELLIN', 'CALI',
-                'BUCARAMANGA', 'PEREIRA', 'MANIZALES', 'ARMENIA', 'IBAGUE', 'NEIVA',
-                'VILLAVICENCIO', 'CUCUTA', 'PASTO', 'POPAYAN', 'TUNJA', 'SABANALARGA', 'SOLEDAD'
-            ];
-            for (const city of ciudadesConocidas) {
-                if (textToSearch.includes(city)) {
-                    ciudad = city.charAt(0) + city.slice(1).toLowerCase();
-                    break;
-                }
+                const possibleRuta = observaciones.match(/\b\d{2,4}\b/);
+                if (possibleRuta) ruta = possibleRuta[0];
             }
 
-            // Si almacen sigue vacío, intentar extraerlo de la dirección del cliente
-            if (!almacen && client.direccion) {
-                const prefixMatch = client.direccion.match(/^([^\-]+)/);
-                if (prefixMatch) {
-                    almacen = prefixMatch[1].trim();
-                }
-            }
-        }
+            const ciudadInput = document.getElementById('dev-ciudad');
+            if (ciudadInput) ciudadInput.value = ciudad;
 
-        // Intentar buscar Ruta en observaciones (patrón "Ruta: XXX" o número independiente)
-        const rutaMatch = observaciones.match(/Ruta:\s*([^\s|]+)/i);
-        if (rutaMatch) {
-            ruta = rutaMatch[1];
+            const almacenInput = document.getElementById('dev-almacen');
+            if (almacenInput) almacenInput.value = almacen;
+
+            const rutaInput = document.getElementById('dev-ruta');
+            if (rutaInput) rutaInput.value = ruta;
+
+            const fechaInput = document.getElementById('dev-fecha');
+            if (fechaInput) fechaInput.value = new Date().toISOString().split('T')[0];
+
+            // Cargar productos de la venta
+            const tbody = document.getElementById('dev-items-table-body');
+            if (tbody) tbody.innerHTML = '';
+            devRowCounter = 0;
+
+            const items = Array.isArray(venta.items) ? venta.items : JSON.parse(venta.items || '[]');
+            for (const item of items) {
+                agregarFilaItemDevolucion({
+                    codigo: item.codigo,
+                    descripcion: item.descripcion,
+                    cajas: 0,
+                    unidades: item.cantidad || 0,
+                    unidades_por_caja: 1,
+                    causal: '',
+                    destino: 'Redespacho'
+                });
+                const selectEl = tbody.querySelector(`#dev-row-${devRowCounter} .dev-item-select`);
+                if (selectEl) selectEl.value = item.codigo;
+                const descPreview = document.getElementById(`dev-desc-${devRowCounter}`);
+                if (descPreview) descPreview.textContent = item.descripcion || '';
+            }
+
+            alert(`Factura ${numFactura} encontrada en el sistema y cargada con ${items.length} producto(s).`);
         } else {
-            // Intentar buscar un número aislado de 2 a 4 dígitos en observaciones
-            const possibleRuta = observaciones.match(/\b\d{2,4}\b/);
-            if (possibleRuta) {
-                ruta = possibleRuta[0];
+            // La factura no existe en ventas: dejar el número ingresado y permitir registro manual
+            // No bloquear al usuario — solo confirmar que el formulario está listo
+            const fechaInput = document.getElementById('dev-fecha');
+            if (fechaInput && !fechaInput.value) {
+                fechaInput.value = new Date().toISOString().split('T')[0];
             }
+            // Asegurar que haya al menos una fila vacía para agregar productos
+            const tbody = document.getElementById('dev-items-table-body');
+            if (tbody && tbody.children.length === 0) {
+                agregarFilaItemDevolucion();
+            }
+            alert(`Factura N° ${numFactura} lista para registrar devolución. Complete los datos del cliente y productos.`);
         }
-
-        // Poblado de campos en HTML y bloqueo
-        const ciudadInput = document.getElementById('dev-ciudad');
-        if (ciudadInput) {
-            ciudadInput.value = ciudad;
-            ciudadInput.readOnly = true;
-        }
-
-        const almacenInput = document.getElementById('dev-almacen');
-        if (almacenInput) {
-            almacenInput.value = almacen;
-            almacenInput.readOnly = true;
-        }
-
-        const rutaInput = document.getElementById('dev-ruta');
-        if (rutaInput) {
-            rutaInput.value = ruta;
-            rutaInput.readOnly = true;
-        }
-
-        const fechaInput = document.getElementById('dev-fecha');
-        if (fechaInput) {
-            fechaInput.value = new Date().toISOString().split('T')[0]; // Fecha actual de recibo
-            fechaInput.readOnly = true;
-        }
-
-        const tbody = document.getElementById('dev-items-table-body');
-        if (tbody) tbody.innerHTML = '';
-        devRowCounter = 0;
-
-        const items = Array.isArray(venta.items) ? venta.items : JSON.parse(venta.items || '[]');
-        for (const item of items) {
-            // Jalar cantidades originales de venta en la columna de unidades
-            agregarFilaItemDevolucion({
-                codigo: item.codigo,
-                descripcion: item.descripcion,
-                cajas: 0,
-                unidades: item.cantidad || 0,
-                unidades_por_caja: 1,
-                causal: '',
-                destino: 'Redespacho'
-            });
-
-            const selectEl = tbody.querySelector(`#dev-row-${devRowCounter} .dev-item-select`);
-            if (selectEl) selectEl.value = item.codigo;
-            const descPreview = document.getElementById(`dev-desc-${devRowCounter}`);
-            if (descPreview) descPreview.textContent = item.descripcion || '';
-        }
-
-        alert(`Factura ${numFactura} cargada con éxito. Se agregaron ${items.length} productos.`);
     } catch (err) {
         console.error(err);
-        alert(`Error al cargar la factura: ${err.message}`);
+        // Incluso si falla la consulta, no bloquear al usuario
+        const fechaInput = document.getElementById('dev-fecha');
+        if (fechaInput && !fechaInput.value) {
+            fechaInput.value = new Date().toISOString().split('T')[0];
+        }
+        alert(`Factura N° ${numFactura} lista. Complete los datos manualmente.`);
     }
 }
 
@@ -1101,7 +1094,9 @@ function parseExcelOrCSVToDevoluciones(rows, colMapping) {
         const devObj = devolucionesMap.get(facturaRaw);
         const qty = parseNumberString(cantidadRaw);
 
-        if (qty > 0) {
+        if (qty >= 0) {
+            // Incluir todos los ítems con código de producto, incluyendo cantidad 0.
+            // Solo se rechazan cantidades negativas (inválidas).
             // Determine target location: use Excel value if formatted, or distribute deterministically to prevent single ubi bottleneck
             const targetUbicacion = (ubicacionRaw && /^V\d{6}$/i.test(ubicacionRaw)) ? ubicacionRaw.toUpperCase() : getUbicacionDeterminista(productCode);
 
