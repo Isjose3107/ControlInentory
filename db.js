@@ -1119,6 +1119,154 @@ module.exports = {
 
         await executeQuery('UPDATE devoluciones SET items = ? WHERE id = ?', [JSON.stringify(items), id]);
         return { success: true };
+    },
+
+    // ponytail: highly optimized bulk import using pre-cached Maps to bypass per-row SELECT checks and single TRANSACTION block
+    async createDevolucionesBulk(devolucionesList) {
+        const fechaActual = new Date().toISOString().split('T')[0];
+
+        // 1. Pre-cargar productos y clientes existentes en Sets de memoria para búsquedas O(1)
+        const productsRows = await executeQuery('SELECT codigo FROM productos');
+        const existingProducts = new Set(productsRows.map(r => String(r.codigo).trim().toLowerCase()));
+
+        const clientsRows = await executeQuery('SELECT nit FROM clientes');
+        const existingClients = new Set(clientsRows.map(r => String(r.nit).trim().toLowerCase()));
+
+        const runBulkQueries = async (queryExecutor) => {
+            let count = 0;
+            for (const dev of devolucionesList) {
+                // Asegurar existencia del cliente en el maestro (si no existe, crearlo)
+                if (dev.cliente_nit) {
+                    const normNit = String(dev.cliente_nit).trim().toLowerCase();
+                    if (!existingClients.has(normNit)) {
+                        await queryExecutor(`
+                            INSERT INTO clientes (nit, nombre, telefono, direccion, correo)
+                            VALUES (?, ?, 'N/A', ?, 'noreply@habitad-wms.com')
+                            ON CONFLICT (nit) DO NOTHING
+                        `, [dev.cliente_nit, dev.cliente_nombre || dev.cliente_nit, dev.observaciones || 'Importación Masiva']);
+                        existingClients.add(normNit);
+                    }
+                }
+
+                // Insertar devolución principal — normalizar undefined → null para SQLite
+                const n = v => (v === undefined || v === '') ? null : v;
+                const devParams = [
+                    n(dev.cliente_nit),
+                    n(dev.factura),
+                    n(dev.ciudad),
+                    n(dev.almacen),
+                    n(dev.fecha),
+                    n(dev.ruta),
+                    n(dev.placa),
+                    JSON.stringify(dev.items),
+                    n(dev.observaciones),
+                    n(dev.estado_producto),
+                    n(dev.firma_responsable),
+                    n(dev.firma_transportador),
+                    n(dev.nombre_transportador),
+                    n(dev.firma_cliente),
+                    fechaActual,
+                    JSON.stringify(dev.fotos || [])
+                ];
+
+                let devId = null;
+                const insertSql = `
+                    INSERT INTO devoluciones (
+                        cliente_nit, factura, ciudad, almacen, fecha, ruta, placa, 
+                        items, observaciones, estado_producto, 
+                        firma_responsable, firma_transportador, nombre_transportador, firma_cliente, 
+                        fecha_registro, fotos
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `;
+
+                if (isPostgres) {
+                    const res = await queryExecutor(insertSql + ' RETURNING id', devParams);
+                    devId = res[0]?.id;
+                } else {
+                    const res = await queryExecutor(insertSql, devParams);
+                    devId = res.lastInsertRowid;
+                }
+
+                // Procesar ítems para reintegro de stock
+                for (const item of dev.items) {
+                    if (item.destino === 'Reintegro') {
+                        const unitsPerBox = Number(item.unidades_por_caja || 1);
+                        const totalUnits = Number(item.unidades || 0) + (Number(item.cajas || 0) * unitsPerBox);
+
+                        if (totalUnits > 0) {
+                            const normCode = String(item.codigo).trim().toLowerCase();
+                            // Asegurar existencia del producto en el catálogo
+                            if (!existingProducts.has(normCode)) {
+                                await queryExecutor(`
+                                    INSERT INTO productos (codigo, descripcion, peso, valor_venta, marca, alto, largo, ancho, unidad_compra, unidad_consumo) 
+                                    VALUES (?, ?, 1.0, 100, 'GENERICA', 10.0, 10.0, 10.0, 'Und', 'Und')
+                                    ON CONFLICT (codigo) DO NOTHING
+                                `, [item.codigo, item.descripcion || 'PRODUCTO DEVOLUCION (NUEVO)']);
+                                existingProducts.add(normCode);
+                            }
+
+                            // Nota: Bypasseamos 'validarDimensionesYVolumen' en la carga masiva para evitar reventar la base de datos/memoria.
+                            // Esto se ajusta al requerimiento de "no filtre nada".
+
+                            // Registrar movimiento IN
+                            await queryExecutor(`
+                                INSERT INTO inventario_movimientos (codigo_producto, tipo, documento_referencia, fecha, cantidad, ubicacion)
+                                VALUES (?, 'IN', ?, ?, ?, ?)
+                            `, [
+                                item.codigo,
+                                `DEV-${devId || 'TEMP'}`,
+                                dev.fecha || fechaActual,
+                                totalUnits,
+                                item.ubicacion || 'V010110'
+                            ]);
+                        }
+                    }
+                }
+                count++;
+            }
+            return { success: true, count };
+        };
+
+        if (isPostgres) {
+            const client = await pgPool.connect();
+            try {
+                await client.query('BEGIN');
+                const executor = async (sql, params = []) => {
+                    let index = 1;
+                    const pgSql = sql.replace(/\?/g, () => `$${index++}`);
+                    const res = await client.query(pgSql, params);
+                    return res.rows;
+                };
+                const result = await runBulkQueries(executor);
+                await client.query('COMMIT');
+                return result;
+            } catch (e) {
+                await client.query('ROLLBACK');
+                throw e;
+            } finally {
+                client.release();
+            }
+        } else {
+            sqliteDb.exec('BEGIN');
+            try {
+                const executor = async (sql, params = []) => {
+                    const stmt = sqliteDb.prepare(sql);
+                    const trimmedSql = sql.trim().toUpperCase();
+                    if (trimmedSql.startsWith('SELECT')) {
+                        return stmt.all(...params);
+                    } else {
+                        const res = stmt.run(...params);
+                        return { success: true, changes: res.changes, lastInsertRowid: res.lastInsertRowid };
+                    }
+                };
+                const result = await runBulkQueries(executor);
+                sqliteDb.exec('COMMIT');
+                return result;
+            } catch (e) {
+                sqliteDb.exec('ROLLBACK');
+                throw e;
+            }
+        }
     }
 
 };

@@ -96,11 +96,22 @@ function isAuthorized(req) {
 
 
 
-// ponytail: modern for-await stream reader
+// ponytail: use Buffer chunks instead of string concat to handle large payloads (e.g., 10MB+ excel bulk imports)
+const MAX_BODY_SIZE = 100 * 1024 * 1024; // 100MB safety limit
 async function getRequestBody(req) {
-    let body = '';
-    for await (const chunk of req) body += chunk;
-    return body ? JSON.parse(body) : {};
+    const chunks = [];
+    let totalSize = 0;
+    for await (const chunk of req) {
+        totalSize += chunk.length;
+        if (totalSize > MAX_BODY_SIZE) {
+            req.destroy();
+            throw new Error('Payload demasiado grande (>100MB). Divida el archivo en partes más pequeñas.');
+        }
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    if (chunks.length === 0) return {};
+    const fullBody = Buffer.concat(chunks).toString('utf8');
+    return fullBody ? JSON.parse(fullBody) : {};
 }
 
 function sendJSON(res, status, data) {
@@ -401,6 +412,18 @@ const apiRoutes = {
                 return sendJSON(res, 400, { error: 'Datos de devolución incompletos o inválidos.' });
             }
             const result = await db.createDevolucion(body);
+            return sendJSON(res, 200, result);
+        } catch (err) {
+            return sendJSON(res, 500, { error: err.message });
+        }
+    },
+    'POST /api/devoluciones/bulk': async (req, res) => {
+        try {
+            const body = await getRequestBody(req);
+            if (!body.devoluciones || !Array.isArray(body.devoluciones)) {
+                return sendJSON(res, 400, { error: 'Datos de importación masiva inválidos.' });
+            }
+            const result = await db.createDevolucionesBulk(body.devoluciones);
             return sendJSON(res, 200, result);
         } catch (err) {
             return sendJSON(res, 500, { error: err.message });
