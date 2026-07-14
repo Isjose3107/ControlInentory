@@ -1763,6 +1763,9 @@
                                 <label for="csv-file-input-dev">Seleccionar Archivo (Excel o CSV)</label>
                                 <input type="file" id="csv-file-input-dev" class="form-control"
                                     accept=".csv, .xlsx, .xls" onchange="procesarArchivoCSVDevoluciones()">
+                                <div id="csv-import-status-dev" style="display:none; font-weight:600; color:var(--color-primary); margin-top:10px;">
+                                    ⏳ Procesando archivo, por favor espere...
+                                </div>
                             </div>
 
                             <!-- Vista previa de importación -->

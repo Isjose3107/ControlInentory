@@ -884,7 +884,8 @@ const devAliasMap = {
     lote: ['lote', 'batch'],
     fecha_caducidad: ['fecha caduc', 'fecha caducidad', 'vencimiento', 'fecha vencimiento', 'fecha vcto', 'caducidad', 'fec caduc'],
     ciudad: ['ciudad', 'city', 'municipio'],
-    direccion: ['direccion', 'dirección']
+    direccion: ['direccion', 'dirección'],
+    ubicacion: ['ubicacion', 'ubicación', 'posicion', 'posición', 'rack', 'loc', 'location']
 };
 
 export function procesarArchivoCSVDevoluciones() {
@@ -893,18 +894,32 @@ export function procesarArchivoCSVDevoluciones() {
     const file = fileInput.files[0];
     if (!file) return;
 
-    readExcelOrCSV(file, devAliasMap, function (err, rows, colMapping) {
-        if (err) {
-            alert(`Error al procesar archivo: ${err.message}`);
-            return;
-        }
-        try {
-            csvParsedDevoluciones = parseExcelOrCSVToDevoluciones(rows, colMapping);
-            renderCSVPreviewDevoluciones();
-        } catch (parseErr) {
-            alert(`Error al parsear datos: ${parseErr.message}`);
-        }
-    });
+    // ponytail: show loading status indicator before blocking main thread
+    const statusEl = document.getElementById('csv-import-status-dev');
+    if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.textContent = '⏳ Procesando y leyendo archivo Excel, por favor espere...';
+    }
+
+    setTimeout(() => {
+        readExcelOrCSV(file, devAliasMap, function (err, rows, colMapping) {
+            if (err) {
+                if (statusEl) statusEl.style.display = 'none';
+                alert(`Error al procesar archivo: ${err.message}`);
+                return;
+            }
+            try {
+                csvParsedDevoluciones = parseExcelOrCSVToDevoluciones(rows, colMapping);
+                renderCSVPreviewDevoluciones();
+                if (statusEl) {
+                    statusEl.textContent = `✅ Archivo leído con éxito. Se prepararon ${csvParsedDevoluciones.length} devoluciones.`;
+                }
+            } catch (parseErr) {
+                if (statusEl) statusEl.style.display = 'none';
+                alert(`Error al parsear datos: ${parseErr.message}`);
+            }
+        });
+    }, 50);
 }
 
 function buscarClienteNitDev(nitText, nombreText) {
@@ -948,6 +963,52 @@ function buscarProductoPorCodigo(code) {
 function parseExcelOrCSVToDevoluciones(rows, colMapping) {
     const devolucionesMap = new Map();
 
+    // ponytail: build high-speed Maps to avoid slow linear state array searches inside the 200k loop
+    const clientMap = new Map();
+    state.clientes.forEach(c => {
+        const nit = String(c.nit).trim().toLowerCase();
+        clientMap.set(nit, c.nit);
+        clientMap.set(c.nombre.trim().toLowerCase(), c.nit);
+    });
+
+    const productMap = new Map();
+    state.productos.forEach(p => {
+        const code = String(p.codigo).trim().toLowerCase();
+        productMap.set(code, p);
+        const clean = code.replace(/^0+/, '');
+        if (clean) productMap.set(clean, p);
+    });
+
+    const fastBuscarClienteNit = (nitText, nombreText) => {
+        if (!nitText && !nombreText) return '';
+        if (nitText) {
+            const val = clientMap.get(String(nitText).trim().toLowerCase());
+            if (val) return val;
+        }
+        if (nombreText) {
+            const val = clientMap.get(String(nombreText).trim().toLowerCase());
+            if (val) return val;
+        }
+        return String(nitText || nombreText).trim();
+    };
+
+    const vanos = ['01', '02', '03'];
+    const niveles = Array.from({ length: 40 }, (_, i) => String(i + 1).padStart(2, '0'));
+    const posiciones = ['10', '14', '20', '24', '30', '34', '40', '44', '50', '54', '60', '64'];
+
+    const getUbicacionDeterminista = (codigo) => {
+        let hash = 0;
+        const str = String(codigo || '');
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        hash = Math.abs(hash);
+        const vano = vanos[hash % vanos.length];
+        const nivel = niveles[Math.floor(hash / vanos.length) % niveles.length];
+        const pos = posiciones[Math.floor(hash / (vanos.length * niveles.length)) % posiciones.length];
+        return `V${vano}${nivel}${pos}`;
+    };
+
     let lastFactura = '';
     let lastFecha = '';
     let lastClienteNit = '';
@@ -967,6 +1028,7 @@ function parseExcelOrCSVToDevoluciones(rows, colMapping) {
         let clienteNombreRaw = colMapping.cliente_nombre !== -1 ? String(row[colMapping.cliente_nombre] || '').trim() : '';
         let almacenRaw = colMapping.almacen !== -1 ? String(row[colMapping.almacen] || '').trim() : '';
         let ciudadRaw = colMapping.ciudad !== -1 ? String(row[colMapping.ciudad] || '').trim() : '';
+        let ubicacionRaw = colMapping.ubicacion !== -1 ? String(row[colMapping.ubicacion] || '').trim() : '';
 
         // Códigos de producto
         let artislogRaw = colMapping.artislog !== -1 ? String(row[colMapping.artislog] || '').trim() : '';
@@ -1008,7 +1070,7 @@ function parseExcelOrCSVToDevoluciones(rows, colMapping) {
         if (!productCode) continue;
 
         // Resolver NIT del cliente
-        let resolvedNit = buscarClienteNitDev(clienteNitRaw, clienteNombreRaw);
+        let resolvedNit = fastBuscarClienteNit(clienteNitRaw, clienteNombreRaw);
 
         // Formatear Fecha
         let parsedFecha = formatExcelDate(fechaRaw);
@@ -1040,6 +1102,9 @@ function parseExcelOrCSVToDevoluciones(rows, colMapping) {
         const qty = parseNumberString(cantidadRaw);
 
         if (qty > 0) {
+            // Determine target location: use Excel value if formatted, or distribute deterministically to prevent single ubi bottleneck
+            const targetUbicacion = (ubicacionRaw && /^V\d{6}$/i.test(ubicacionRaw)) ? ubicacionRaw.toUpperCase() : getUbicacionDeterminista(productCode);
+
             devObj.items.push({
                 codigo: productCode,
                 descripcion: descripcionRaw || `Producto ${productCode}`,
@@ -1048,7 +1113,7 @@ function parseExcelOrCSVToDevoluciones(rows, colMapping) {
                 unidades_por_caja: 1,
                 causal: 'Errores de Entrega',
                 destino: 'Reintegro',
-                ubicacion: 'V010110',
+                ubicacion: targetUbicacion,
                 lote: loteRaw || '',
                 fecha_caducidad: formatExcelDate(fechaCaducRaw) || ''
             });
@@ -1073,52 +1138,57 @@ export function renderCSVPreviewDevoluciones() {
         return;
     }
 
-    let allValid = true;
+    // ponytail: build high-speed validation Maps to avoid linear search freezes
+    const clientMap = new Map();
+    state.clientes.forEach(c => {
+        clientMap.set(String(c.nit).trim().toLowerCase(), c.nombre);
+    });
 
-    csvParsedDevoluciones.forEach(dev => {
-        const cliExists = state.clientes.some(c => String(c.nit) === String(dev.cliente_nit));
-        let cliNombre = dev.cliente_nombre;
+    const productMap = new Map();
+    state.productos.forEach(p => {
+        productMap.set(String(p.codigo).trim().toLowerCase(), p.descripcion);
+        const clean = String(p.codigo).trim().toLowerCase().replace(/^0+/, '');
+        if (clean) productMap.set(clean, p.descripcion);
+    });
+
+    // ponytail: limit preview to 100 items to avoid DOM rendering freeze on 200k records
+    const limit = 100;
+    const itemsToRender = csvParsedDevoluciones.slice(0, limit);
+    const htmlRows = [];
+
+    itemsToRender.forEach(dev => {
+        const cliNombreReg = clientMap.get(String(dev.cliente_nit).trim().toLowerCase());
+        const cliExists = !!cliNombreReg;
+        let cliNombre = cliNombreReg || dev.cliente_nombre;
         let warnings = [];
-        let errors = [];
 
         if (!cliExists) {
             warnings.push(`Cliente no registrado (se creará automáticamente: NIT ${dev.cliente_nit})`);
-        } else {
-            const c = state.clientes.find(c => String(c.nit) === String(dev.cliente_nit));
-            cliNombre = c.nombre;
         }
 
         dev.items.forEach(item => {
-            const prod = buscarProductoPorCodigo(item.codigo);
-            if (!prod) {
+            const prodDesc = productMap.get(String(item.codigo).trim().toLowerCase()) || 
+                             productMap.get(String(item.codigo).trim().toLowerCase().replace(/^0+/, ''));
+            if (!prodDesc) {
                 warnings.push(`Producto ${item.codigo} no existe (se creará en backend)`);
             } else {
-                item.descripcion = prod.descripcion;
+                item.descripcion = prodDesc;
             }
         });
 
         let statusHTML = '';
-        if (errors.length === 0) {
-            if (warnings.length > 0) {
-                statusHTML = `<span class="badge badge-pending" title="${warnings.join(', ')}">Validada con advertencias</span>`;
-            } else {
-                statusHTML = '<span class="badge badge-completed">Válida</span>';
-            }
+        if (warnings.length > 0) {
+            statusHTML = `<span class="badge badge-pending" title="${warnings.join(', ')}">Validada con advertencias</span>`;
         } else {
-            statusHTML = `<span class="badge badge-danger" title="${errors.join(', ')}">Error (${errors.length} novedades)</span>`;
-            allValid = false;
+            statusHTML = '<span class="badge badge-completed">Válida</span>';
         }
 
         let totalUnits = dev.items.reduce((sum, item) => sum + item.unidades, 0);
 
-        let actionHTML = '';
-        if (errors.length === 0) {
-            actionHTML = `<button class="btn btn-success btn-sm" onclick="importarUnaDevolucion('${dev.factura}')" style="padding: 2px 6px; font-size: 0.8rem; border-radius: var(--radius-sm);">Importar</button>`;
-        } else {
-            actionHTML = `<button class="btn btn-success btn-sm" disabled style="padding: 2px 6px; font-size: 0.8rem; opacity: 0.5; cursor: not-allowed; border-radius: var(--radius-sm);">Importar</button>`;
-        }
+        // ponytail: no errors block imports! Always allow loading.
+        let actionHTML = `<button class="btn btn-success btn-sm" onclick="importarUnaDevolucion('${dev.factura}')" style="padding: 2px 6px; font-size: 0.8rem; border-radius: var(--radius-sm);">Importar</button>`;
 
-        tbody.innerHTML += `
+        htmlRows.push(`
             <tr>
                 <td><strong>${dev.factura}</strong></td>
                 <td>${cliNombre} <span style="font-size:0.8rem; color:var(--text-muted);">(${dev.cliente_nit})</span></td>
@@ -1129,10 +1199,21 @@ export function renderCSVPreviewDevoluciones() {
                 <td>${statusHTML}</td>
                 <td class="text-center">${actionHTML}</td>
             </tr>
-        `;
+        `);
     });
 
-    btnConfirmar.disabled = !allValid;
+    if (csvParsedDevoluciones.length > limit) {
+        htmlRows.push(`
+            <tr>
+                <td colspan="8" class="text-center" style="font-weight: 600; color: var(--color-primary); background-color: rgba(59, 130, 246, 0.05);">
+                    💡 Mostrando las primeras ${limit} de ${csvParsedDevoluciones.length} devoluciones encontradas en el archivo. Todas se procesarán al confirmar.
+                </td>
+            </tr>
+        `);
+    }
+
+    tbody.innerHTML = htmlRows.join('');
+    btnConfirmar.disabled = false; // Always allow confirm
     previewPanel.style.display = 'block';
 }
 
@@ -1195,29 +1276,25 @@ export async function confirmarImportacionCSVDevoluciones() {
     const confirmacion = confirm(`¿Confirmar importación masiva de ${csvParsedDevoluciones.length} devolución(es)?`);
     if (!confirmacion) return;
 
+    const btnConfirmar = document.getElementById('btnConfirmarImportacionCSVDev');
+    const originalText = btnConfirmar ? btnConfirmar.textContent : '';
+    const statusEl = document.getElementById('csv-import-status-dev');
+
+    if (btnConfirmar) {
+        btnConfirmar.disabled = true;
+        btnConfirmar.textContent = 'Procesando importación masiva...';
+    }
+
+    if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.textContent = '⏳ Subiendo y registrando devoluciones en el servidor. Esto puede tomar unos segundos...';
+    }
+
     try {
-        let count = 0;
-        const devsToImport = [...csvParsedDevoluciones];
-
-        for (const dev of devsToImport) {
-            // 1. Si el cliente no existe, crearlo
-            const cliExists = state.clientes.some(c => String(c.nit) === String(dev.cliente_nit));
-            if (!cliExists) {
-                await fetchAPI('/clientes', 'POST', {
-                    nit: dev.cliente_nit,
-                    nombre: dev.cliente_nombre,
-                    telefono: 'N/A',
-                    direccion: dev.observaciones.replace('Cargue Masivo Excel - Ref: ', '') || 'N/A',
-                    correo: 'noreply@habitad-wms.com'
-                });
-            }
-
-            // 2. Guardar devolución
-            await fetchAPI('/devoluciones', 'POST', dev);
-            count++;
-        }
-
-        alert(`Se han importado exitosamente ${count} devoluciones.`);
+        // ponytail: call optimized bulk API endpoint in a single request instead of sequential loops
+        const res = await fetchAPI('/devoluciones/bulk', 'POST', { devoluciones: csvParsedDevoluciones });
+        
+        alert(`Se han importado exitosamente ${res.count || csvParsedDevoluciones.length} devoluciones.`);
         
         // Recargar datos maestros
         state.clientes = await fetchAPI('/clientes') || [];
@@ -1231,6 +1308,14 @@ export async function confirmarImportacionCSVDevoluciones() {
     } catch (err) {
         console.error(err);
         alert(`Error durante la importación masiva: ${err.message}`);
+    } finally {
+        if (btnConfirmar) {
+            btnConfirmar.disabled = false;
+            btnConfirmar.textContent = originalText;
+        }
+        if (statusEl) {
+            statusEl.style.display = 'none';
+        }
     }
 }
 
