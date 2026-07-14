@@ -1465,6 +1465,8 @@
                             onclick="switchDevTab('registrar')">Registrar Devolución</button>
                         <button class="btn btn-secondary" id="dev-tab-historial"
                             onclick="switchDevTab('historial')">Historial de Devoluciones</button>
+                        <button class="btn btn-secondary" id="dev-tab-masiva"
+                            onclick="switchDevTab('masiva')">Cargue Masivo (Excel/CSV)</button>
                     </div>
 
                     <!-- TAB 1: REGISTRAR DEVOLUCIÓN -->
@@ -1679,6 +1681,63 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: CARGUE MASIVO -->
+                    <div id="dev-pane-masiva" class="card" style="display:none;">
+                        <div class="card-header">
+                            <h2>Cargar Devoluciones Masivamente</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4 alert-info">
+                                <h3 style="color: #60a5fa; font-size: 1.1rem; margin-bottom: 8px;">Carga de Devoluciones en Excel o CSV:</h3>
+                                <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.4;">
+                                    Suba su archivo de devoluciones en formato <strong>Excel (.xlsx, .xls)</strong> o <strong>CSV (.csv)</strong>.
+                                    El sistema detectará automáticamente las columnas mediante el análisis de encabezados (ej: <i>Fecha, Factura, Cod Cliente, Cliente, Artislog, Articulo, Cantid, Lote, Fecha Caduc, Almacen, Ciudad</i>, etc.).
+                                </p>
+                                <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">
+                                    * Los campos de factura, código de producto y cantidad son obligatorios. Las devoluciones se agruparán automáticamente por número de factura.
+                                </p>
+                                <button class="btn btn-secondary btn-sm mt-3"
+                                    onclick="descargarPlantillaCSVDevoluciones()">Descargar Plantilla Excel</button>
+                            </div>
+
+                            <div class="form-group mb-4">
+                                <label for="csv-file-input-dev">Seleccionar Archivo (Excel o CSV)</label>
+                                <input type="file" id="csv-file-input-dev" class="form-control"
+                                    accept=".csv, .xlsx, .xls" onchange="procesarArchivoCSVDevoluciones()">
+                            </div>
+
+                            <!-- Vista previa de importación -->
+                            <div id="csv-preview-panel-dev" style="display:none;" class="mt-4">
+                                <h3 style="font-size: 1.1rem; margin-bottom: 12px;">Vista Previa de Devoluciones a Importar</h3>
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>Factura / Remisión</th>
+                                                <th>Cliente</th>
+                                                <th>Fecha</th>
+                                                <th>Ciudad / Almacén</th>
+                                                <th class="text-center">Items</th>
+                                                <th class="text-center">Unidades Devueltas</th>
+                                                <th>Validación</th>
+                                                <th class="text-center">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="csv-preview-body-dev">
+                                            <!-- Dinámico -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="text-right mt-3">
+                                    <button class="btn btn-secondary mr-2"
+                                        onclick="cancelarImportacionCSVDevoluciones()">Cancelar</button>
+                                    <button class="btn btn-success" id="btnConfirmarImportacionCSVDev"
+                                        onclick="confirmarImportacionCSVDevoluciones()" disabled>Confirmar e Importar Devoluciones</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

@@ -6,7 +6,10 @@ import {
     validarCondicionesUbicacion, 
     getUbicacionCode, 
     validarUbicacion,
-    initDateInputs
+    initDateInputs,
+    readExcelOrCSV,
+    parseNumberString,
+    formatExcelDate
 } from '../utils.js';
 
 let devRowCounter = 0;
@@ -36,14 +39,16 @@ export function initDevoluciones() {
 export function switchDevTab(tabName) {
     document.getElementById('dev-tab-registrar').className = `btn ${tabName === 'registrar' ? 'btn-primary' : 'btn-secondary'}`;
     document.getElementById('dev-tab-historial').className = `btn ${tabName === 'historial' ? 'btn-primary' : 'btn-secondary'}`;
+    document.getElementById('dev-tab-masiva').className = `btn ${tabName === 'masiva' ? 'btn-primary' : 'btn-secondary'}`;
     
     document.getElementById('dev-pane-registrar').style.display = tabName === 'registrar' ? 'block' : 'none';
     document.getElementById('dev-pane-historial').style.display = tabName === 'historial' ? 'block' : 'none';
+    document.getElementById('dev-pane-masiva').style.display = tabName === 'masiva' ? 'block' : 'none';
 
     if (tabName === 'registrar') {
         // Redimensionar canvases cuando se vuelven visibles
         setTimeout(resizeAllCanvases, 50);
-    } else {
+    } else if (tabName === 'historial') {
         loadDevolucionesHistorial();
     }
 }
@@ -862,6 +867,401 @@ export function eliminarFotoDevolucion(btn, base64) {
     }
 }
 
+// --- LOGICA DE CARGUE MASIVO DE DEVOLUCIONES ---
+let csvParsedDevoluciones = [];
+
+const devAliasMap = {
+    fecha: ['fecha', 'fec', 'date'],
+    almacen: ['almacen', 'almacén', 'bodega', 'wh', 'warehouse', 'propio'],
+    factura: ['factura', 'fact', 'fac', 'remision', 'remisión', 'invoice'],
+    cliente_nit: ['cod cliente', 'nit', 'nit cliente', 'cliente nit', 'cedula', 'cédula', 'doc', 'documento'],
+    cliente_nombre: ['cliente', 'nombre', 'nombre cliente', 'razon social', 'razón social'],
+    artislog: ['artislog', 'art.islog', 'islog'],
+    art_cliente: ['art cliente', 'articulo cliente', 'artículo cliente', 'art.cliente'],
+    codigo_producto: ['código', 'codigo', 'item', 'art', 'sku'],
+    descripcion_producto: ['articulo', 'artículo', 'descripcion', 'descripción', 'producto'],
+    cantidad: ['cantid', 'cantidad', 'cant', 'unidades', 'uds', 'qty'],
+    lote: ['lote', 'batch'],
+    fecha_caducidad: ['fecha caduc', 'fecha caducidad', 'vencimiento', 'fecha vencimiento', 'fecha vcto', 'caducidad', 'fec caduc'],
+    ciudad: ['ciudad', 'city', 'municipio'],
+    direccion: ['direccion', 'dirección']
+};
+
+export function procesarArchivoCSVDevoluciones() {
+    const fileInput = document.getElementById('csv-file-input-dev');
+    if (!fileInput) return;
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    readExcelOrCSV(file, devAliasMap, function (err, rows, colMapping) {
+        if (err) {
+            alert(`Error al procesar archivo: ${err.message}`);
+            return;
+        }
+        try {
+            csvParsedDevoluciones = parseExcelOrCSVToDevoluciones(rows, colMapping);
+            renderCSVPreviewDevoluciones();
+        } catch (parseErr) {
+            alert(`Error al parsear datos: ${parseErr.message}`);
+        }
+    });
+}
+
+function buscarClienteNitDev(nitText, nombreText) {
+    if (!nitText && !nombreText) return '';
+    
+    // Buscar por NIT
+    if (nitText) {
+        const normNit = String(nitText).trim().toLowerCase();
+        let match = state.clientes.find(c => String(c.nit).trim().toLowerCase() === normNit);
+        if (match) return match.nit;
+    }
+    
+    // Buscar por Nombre
+    if (nombreText) {
+        const normName = String(nombreText).trim().toLowerCase();
+        let match = state.clientes.find(c => c.nombre.trim().toLowerCase() === normName);
+        if (match) return match.nit;
+        
+        // Coincidencia parcial por nombre
+        match = state.clientes.find(c => 
+            c.nombre.toLowerCase().includes(normName) || 
+            normName.includes(c.nombre.toLowerCase())
+        );
+        if (match) return match.nit;
+    }
+
+    return String(nitText || nombreText).trim();
+}
+
+function buscarProductoPorCodigo(code) {
+    if (!code) return null;
+    const norm = String(code).trim().toLowerCase();
+    const cleanNum = norm.replace(/^0+/, ''); // strip leading zeros
+    return state.productos.find(p => {
+        const pCode = String(p.codigo).trim().toLowerCase();
+        const pClean = pCode.replace(/^0+/, '');
+        return pCode === norm || (cleanNum && pClean === cleanNum);
+    });
+}
+
+function parseExcelOrCSVToDevoluciones(rows, colMapping) {
+    const devolucionesMap = new Map();
+
+    let lastFactura = '';
+    let lastFecha = '';
+    let lastClienteNit = '';
+    let lastClienteNombre = '';
+    let lastAlmacen = '';
+    let lastCiudad = '';
+
+    const startIndex = colMapping._headerIndex + 1;
+
+    for (let i = startIndex; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !Array.isArray(row) || row.length === 0) continue;
+
+        let facturaRaw = colMapping.factura !== -1 ? String(row[colMapping.factura] || '').trim() : '';
+        let fechaRaw = colMapping.fecha !== -1 ? String(row[colMapping.fecha] || '').trim() : '';
+        let clienteNitRaw = colMapping.cliente_nit !== -1 ? String(row[colMapping.cliente_nit] || '').trim() : '';
+        let clienteNombreRaw = colMapping.cliente_nombre !== -1 ? String(row[colMapping.cliente_nombre] || '').trim() : '';
+        let almacenRaw = colMapping.almacen !== -1 ? String(row[colMapping.almacen] || '').trim() : '';
+        let ciudadRaw = colMapping.ciudad !== -1 ? String(row[colMapping.ciudad] || '').trim() : '';
+
+        // Códigos de producto
+        let artislogRaw = colMapping.artislog !== -1 ? String(row[colMapping.artislog] || '').trim() : '';
+        let artClienteRaw = colMapping.art_cliente !== -1 ? String(row[colMapping.art_cliente] || '').trim() : '';
+        let codigoRaw = colMapping.codigo_producto !== -1 ? String(row[colMapping.codigo_producto] || '').trim() : '';
+        
+        let descripcionRaw = colMapping.descripcion_producto !== -1 ? String(row[colMapping.descripcion_producto] || '').trim() : '';
+        let cantidadRaw = colMapping.cantidad !== -1 ? String(row[colMapping.cantidad] || '').trim() : '';
+        let loteRaw = colMapping.lote !== -1 ? String(row[colMapping.lote] || '').trim() : '';
+        let fechaCaducRaw = colMapping.fecha_caducidad !== -1 ? String(row[colMapping.fecha_caducidad] || '').trim() : '';
+        let direccionRaw = colMapping.direccion !== -1 ? String(row[colMapping.direccion] || '').trim() : '';
+
+        // Si la fila está completamente vacía, saltar
+        if (!facturaRaw && !codigoRaw && !clienteNitRaw && !artislogRaw && !artClienteRaw) continue;
+
+        // Auto-llenado de filas combinadas o agrupadas
+        if (facturaRaw) lastFactura = facturaRaw;
+        else facturaRaw = lastFactura;
+
+        if (fechaRaw) lastFecha = fechaRaw;
+        else fechaRaw = lastFecha;
+
+        if (clienteNitRaw) lastClienteNit = clienteNitRaw;
+        else clienteNitRaw = lastClienteNit;
+
+        if (clienteNombreRaw) lastClienteNombre = clienteNombreRaw;
+        else clienteNombreRaw = lastClienteNombre;
+
+        if (almacenRaw) lastAlmacen = almacenRaw;
+        else almacenRaw = lastAlmacen;
+
+        if (ciudadRaw) lastCiudad = ciudadRaw;
+        else ciudadRaw = lastCiudad;
+
+        if (!facturaRaw) continue;
+
+        // Determinar código de producto
+        let productCode = artislogRaw || artClienteRaw || codigoRaw;
+        if (!productCode) continue;
+
+        // Resolver NIT del cliente
+        let resolvedNit = buscarClienteNitDev(clienteNitRaw, clienteNombreRaw);
+
+        // Formatear Fecha
+        let parsedFecha = formatExcelDate(fechaRaw);
+        if (!parsedFecha) parsedFecha = new Date().toISOString().split('T')[0];
+
+        // Inicializar objeto de devolución si es nuevo
+        if (!devolucionesMap.has(facturaRaw)) {
+            devolucionesMap.set(facturaRaw, {
+                cliente_nit: resolvedNit,
+                cliente_nombre: clienteNombreRaw || resolvedNit,
+                factura: facturaRaw,
+                ciudad: ciudadRaw || 'Barranquilla',
+                almacen: almacenRaw || 'BGA',
+                fecha: parsedFecha,
+                ruta: '',
+                placa: '',
+                items: [],
+                observaciones: `Cargue Masivo Excel - Ref: ${direccionRaw || ''}`.trim(),
+                estado_producto: 'Bueno',
+                nombre_transportador: 'SISTEMA',
+                firma_responsable: "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='150'%3E%3Crect width='100%25' height='100%25' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='14' font-weight='bold' fill='%2364748b'%3ECARGA MASIVA%3C/text%3E%3C/svg%3E",
+                firma_transportador: "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='150'%3E%3Crect width='100%25' height='100%25' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='14' font-weight='bold' fill='%2364748b'%3ECARGA MASIVA%3C/text%3E%3C/svg%3E",
+                firma_cliente: "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='150'%3E%3Crect width='100%25' height='100%25' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='14' font-weight='bold' fill='%2364748b'%3ECARGA MASIVA%3C/text%3E%3C/svg%3E",
+                fotos: []
+            });
+        }
+
+        const devObj = devolucionesMap.get(facturaRaw);
+        const qty = parseNumberString(cantidadRaw);
+
+        if (qty > 0) {
+            devObj.items.push({
+                codigo: productCode,
+                descripcion: descripcionRaw || `Producto ${productCode}`,
+                cajas: 0,
+                unidades: qty,
+                unidades_por_caja: 1,
+                causal: 'Errores de Entrega',
+                destino: 'Reintegro',
+                ubicacion: 'V010110',
+                lote: loteRaw || '',
+                fecha_caducidad: formatExcelDate(fechaCaducRaw) || ''
+            });
+        }
+    }
+
+    return Array.from(devolucionesMap.values()).filter(d => d.items.length > 0);
+}
+
+export function renderCSVPreviewDevoluciones() {
+    const previewPanel = document.getElementById('csv-preview-panel-dev');
+    const tbody = document.getElementById('csv-preview-body-dev');
+    const btnConfirmar = document.getElementById('btnConfirmarImportacionCSVDev');
+
+    if (!tbody || !previewPanel || !btnConfirmar) return;
+    tbody.innerHTML = '';
+
+    if (csvParsedDevoluciones.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No se encontraron devoluciones válidas para importar.</td></tr>';
+        btnConfirmar.disabled = true;
+        previewPanel.style.display = 'block';
+        return;
+    }
+
+    let allValid = true;
+
+    csvParsedDevoluciones.forEach(dev => {
+        const cliExists = state.clientes.some(c => String(c.nit) === String(dev.cliente_nit));
+        let cliNombre = dev.cliente_nombre;
+        let warnings = [];
+        let errors = [];
+
+        if (!cliExists) {
+            warnings.push(`Cliente no registrado (se creará automáticamente: NIT ${dev.cliente_nit})`);
+        } else {
+            const c = state.clientes.find(c => String(c.nit) === String(dev.cliente_nit));
+            cliNombre = c.nombre;
+        }
+
+        dev.items.forEach(item => {
+            const prod = buscarProductoPorCodigo(item.codigo);
+            if (!prod) {
+                warnings.push(`Producto ${item.codigo} no existe (se creará en backend)`);
+            } else {
+                item.descripcion = prod.descripcion;
+            }
+        });
+
+        let statusHTML = '';
+        if (errors.length === 0) {
+            if (warnings.length > 0) {
+                statusHTML = `<span class="badge badge-pending" title="${warnings.join(', ')}">Validada con advertencias</span>`;
+            } else {
+                statusHTML = '<span class="badge badge-completed">Válida</span>';
+            }
+        } else {
+            statusHTML = `<span class="badge badge-danger" title="${errors.join(', ')}">Error (${errors.length} novedades)</span>`;
+            allValid = false;
+        }
+
+        let totalUnits = dev.items.reduce((sum, item) => sum + item.unidades, 0);
+
+        let actionHTML = '';
+        if (errors.length === 0) {
+            actionHTML = `<button class="btn btn-success btn-sm" onclick="importarUnaDevolucion('${dev.factura}')" style="padding: 2px 6px; font-size: 0.8rem; border-radius: var(--radius-sm);">Importar</button>`;
+        } else {
+            actionHTML = `<button class="btn btn-success btn-sm" disabled style="padding: 2px 6px; font-size: 0.8rem; opacity: 0.5; cursor: not-allowed; border-radius: var(--radius-sm);">Importar</button>`;
+        }
+
+        tbody.innerHTML += `
+            <tr>
+                <td><strong>${dev.factura}</strong></td>
+                <td>${cliNombre} <span style="font-size:0.8rem; color:var(--text-muted);">(${dev.cliente_nit})</span></td>
+                <td>${dev.fecha}</td>
+                <td>${dev.ciudad} / ${dev.almacen}</td>
+                <td class="text-center">${dev.items.length}</td>
+                <td class="text-center">${totalUnits}</td>
+                <td>${statusHTML}</td>
+                <td class="text-center">${actionHTML}</td>
+            </tr>
+        `;
+    });
+
+    btnConfirmar.disabled = !allValid;
+    previewPanel.style.display = 'block';
+}
+
+export async function importarUnaDevolucion(factura) {
+    const devIndex = csvParsedDevoluciones.findIndex(d => d.factura === factura);
+    if (devIndex === -1) return;
+
+    const dev = csvParsedDevoluciones[devIndex];
+
+    try {
+        // 1. Si el cliente no existe, crearlo
+        const cliExists = state.clientes.some(c => String(c.nit) === String(dev.cliente_nit));
+        if (!cliExists) {
+            await fetchAPI('/clientes', 'POST', {
+                nit: dev.cliente_nit,
+                nombre: dev.cliente_nombre,
+                telefono: 'N/A',
+                direccion: dev.observaciones.replace('Cargue Masivo Excel - Ref: ', '') || 'N/A',
+                correo: 'noreply@habitad-wms.com'
+            });
+            // Recargar clientes localmente
+            state.clientes = await fetchAPI('/clientes') || [];
+            populateClientesSelect('dev-cliente');
+        }
+
+        // 2. Importar la devolución
+        const res = await fetchAPI('/devoluciones', 'POST', dev);
+        alert(`Devolución Factura ${factura} importada con éxito. Consecutivo: ${res.id}`);
+
+        // Eliminar de la lista de vista previa
+        csvParsedDevoluciones.splice(devIndex, 1);
+        renderCSVPreviewDevoluciones();
+
+        // Si ya no quedan, ocultar panel
+        if (csvParsedDevoluciones.length === 0) {
+            cancelarImportacionCSVDevoluciones();
+        }
+
+        // Recargar stocks e historial
+        state.stockPorUbicacion = await fetchAPI('/inventario/stock/ubicaciones') || [];
+        state.productos = await fetchAPI('/productos') || [];
+        loadDevolucionesHistorial();
+    } catch (err) {
+        console.error(err);
+        alert(`Error al importar la devolución de la factura ${factura}: ${err.message}`);
+    }
+}
+
+export function cancelarImportacionCSVDevoluciones() {
+    const previewPanel = document.getElementById('csv-preview-panel-dev');
+    if (previewPanel) previewPanel.style.display = 'none';
+    const fileInput = document.getElementById('csv-file-input-dev');
+    if (fileInput) fileInput.value = '';
+    csvParsedDevoluciones = [];
+}
+
+export async function confirmarImportacionCSVDevoluciones() {
+    if (csvParsedDevoluciones.length === 0) return;
+
+    const confirmacion = confirm(`¿Confirmar importación masiva de ${csvParsedDevoluciones.length} devolución(es)?`);
+    if (!confirmacion) return;
+
+    try {
+        let count = 0;
+        const devsToImport = [...csvParsedDevoluciones];
+
+        for (const dev of devsToImport) {
+            // 1. Si el cliente no existe, crearlo
+            const cliExists = state.clientes.some(c => String(c.nit) === String(dev.cliente_nit));
+            if (!cliExists) {
+                await fetchAPI('/clientes', 'POST', {
+                    nit: dev.cliente_nit,
+                    nombre: dev.cliente_nombre,
+                    telefono: 'N/A',
+                    direccion: dev.observaciones.replace('Cargue Masivo Excel - Ref: ', '') || 'N/A',
+                    correo: 'noreply@habitad-wms.com'
+                });
+            }
+
+            // 2. Guardar devolución
+            await fetchAPI('/devoluciones', 'POST', dev);
+            count++;
+        }
+
+        alert(`Se han importado exitosamente ${count} devoluciones.`);
+        
+        // Recargar datos maestros
+        state.clientes = await fetchAPI('/clientes') || [];
+        populateClientesSelect('dev-cliente');
+        state.stockPorUbicacion = await fetchAPI('/inventario/stock/ubicaciones') || [];
+        state.productos = await fetchAPI('/productos') || [];
+
+        // Limpiar vista previa y cambiar de pestaña
+        cancelarImportacionCSVDevoluciones();
+        switchDevTab('historial');
+    } catch (err) {
+        console.error(err);
+        alert(`Error durante la importación masiva: ${err.message}`);
+    }
+}
+
+export function descargarPlantillaCSVDevoluciones() {
+    if (window.XLSX) {
+        const data = [
+            ["Fecha", "Propio", "Almacen", "Pedidolog", "Factura", "Cod Cliente", "Art Cliente", "Cliente", "Direccion", "Ciudad", "Dpto", "Artislog", "Articulo", "Fecha Caduc", "Lote", "Cantid"],
+            ["10-07-2026", "44901", "BGA", "4683099", "81684151", "1", "2500000203", "GENERICO", "PREDIO SAN JOSE KM 3 VIA GALAPA BARRANQU", "GALAPA", "ATLANTICO", "0000248", "SIX PACK MALT 12 OZ CAFE LIOFILIZADO", "01/08/27", "", "8"],
+            ["10-07-2026", "44901", "BGA", "4683099", "81684151", "1", "2500000254", "GENERICO", "PREDIO SAN JOSE KM 3 VIA GALAPA BARRANQU", "GALAPA", "ATLANTICO", "0000249", "SIX PACK MALT 18 OZ CAFE LIOFILIZADO", "01/08/27", "", "8"],
+            ["11-07-2026", "29601", "BGA", "4683152", "5217211", "1000412353", "11H7300", "PLATAFORMA CEDI CARIBE BARRANQUILLA", "", "BARRANQUILLA", "ATLANTICO", "0000040", "PALIYUCA PQ X500GR", "10/03/27", "1005599389", "42"]
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Devoluciones");
+        XLSX.writeFile(wb, "plantilla_devoluciones_mercancia.xlsx");
+    } else {
+        const headers = 'Fecha,Propio,Almacen,Pedidolog,Factura,Cod Cliente,Art Cliente,Cliente,Direccion,Ciudad,Dpto,Artislog,Articulo,Fecha Caduc,Lote,Cantid\n';
+        const sample = '10-07-2026,44901,BGA,4683099,81684151,1,2500000203,GENERICO,PREDIO SAN JOSE KM 3 VIA GALAPA BARRANQU,GALAPA,ATLANTICO,0000248,SIX PACK MALT 12 OZ CAFE LIOFILIZADO,01/08/27,,8\n';
+
+        const blob = new Blob([headers + sample], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "plantilla_devoluciones_mercancia.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+
 // --- BINDING AL ENTORNO GLOBAL ---
 window.initDevoluciones = initDevoluciones;
 window.switchDevTab = switchDevTab;
@@ -882,4 +1282,9 @@ window.imprimirDevolucionDirecto = imprimirDevolucionDirecto;
 window.cargarFacturaParaDevolucion = cargarFacturaParaDevolucion;
 window.procesarFotosDevolucion = procesarFotosDevolucion;
 window.eliminarFotoDevolucion = eliminarFotoDevolucion;
+window.procesarArchivoCSVDevoluciones = procesarArchivoCSVDevoluciones;
+window.cancelarImportacionCSVDevoluciones = cancelarImportacionCSVDevoluciones;
+window.confirmarImportacionCSVDevoluciones = confirmarImportacionCSVDevoluciones;
+window.descargarPlantillaCSVDevoluciones = descargarPlantillaCSVDevoluciones;
+window.importarUnaDevolucion = importarUnaDevolucion;
 
