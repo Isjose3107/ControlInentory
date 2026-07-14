@@ -185,47 +185,103 @@
 
                 <!-- 2. VIEW: MONTACARGUISTA (Consolidado Diario) -->
                 <section id="view-montacarguista" class="view-pane">
-                    <div class="card search-card">
-                        <div class="form-row">
-                            <div class="form-group flex-1">
-                                <label for="monta-fecha">Seleccionar Fecha de Consulta</label>
-                                <input type="date" id="monta-fecha" class="form-control">
+                    <!-- Tabs -->
+                    <div class="flex-row gap-2 mb-3">
+                        <button class="btn btn-primary" id="monta-tab-consulta" onclick="switchMontaTab('consulta')">Consulta Consolidado</button>
+                        <button class="btn btn-secondary" id="monta-tab-importar" onclick="switchMontaTab('importar')">Importar Despacho Diario</button>
+                    </div>
+
+                    <!-- TAB 1: CONSULTA -->
+                    <div id="monta-pane-consulta" class="card">
+                        <div class="card search-card">
+                            <div class="form-row">
+                                <div class="form-group flex-1">
+                                    <label for="monta-fecha">Seleccionar Fecha de Consulta</label>
+                                    <input type="date" id="monta-fecha" class="form-control">
+                                </div>
+                                <div class="form-group flex-2 align-self-end">
+                                    <button class="btn btn-primary" onclick="loadMontacarguistaConsolidado()">Consultar
+                                        Consolidado Diario</button>
+                                </div>
                             </div>
-                            <div class="form-group flex-2 align-self-end">
-                                <button class="btn btn-primary" onclick="loadMontacarguistaConsolidado()">Consultar
-                                    Consolidado Diario</button>
+                        </div>
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <h2 id="monta-fecha-title">Consolidado del Día</h2>
+                                <div class="flex-row gap-2 align-items-center">
+                                    <button class="btn btn-secondary btn-sm"
+                                        onclick="imprimirConsolidadoMontacarguista()">Imprimir Consolidado</button>
+                                    <span class="badge" id="monta-total-facturas">0 Facturas</span>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>No. Remisión / Factura</th>
+                                            <th>Cliente</th>
+                                            <th>Total Items</th>
+                                            <th>Total Unidades</th>
+                                            <th>Estado Alistamiento</th>
+                                            <th>Acción Auxiliar</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="monta-consolidado-body">
+                                        <tr>
+                                            <td colspan="6" class="text-center">Seleccione una fecha y haga clic en
+                                                consultar.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
 
-                    <div class="card mt-4">
+                    <!-- TAB 2: IMPORTAR DESPACHO -->
+                    <div id="monta-pane-importar" class="card" style="display:none;">
                         <div class="card-header">
-                            <h2 id="monta-fecha-title">Consolidado del Día</h2>
-                            <div class="flex-row gap-2 align-items-center">
-                                <button class="btn btn-secondary btn-sm"
-                                    onclick="imprimirConsolidadoMontacarguista()">Imprimir Consolidado</button>
-                                <span class="badge" id="monta-total-facturas">0 Facturas</span>
-                            </div>
+                            <h2>Carga de Archivo Despacho Diario (Excel / CSV)</h2>
                         </div>
-                        <div class="table-responsive">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>No. Remisión / Factura</th>
-                                        <th>Cliente</th>
-                                        <th>Total Items</th>
-                                        <th>Total Unidades</th>
-                                        <th>Estado Alistamiento</th>
-                                        <th>Acción Auxiliar</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="monta-consolidado-body">
-                                    <tr>
-                                        <td colspan="6" class="text-center">Seleccione una fecha y haga clic en
-                                            consultar.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <div class="card-body">
+                            <div class="mb-4" style="background-color: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); padding: 16px; border-radius: var(--radius-md);">
+                                <h3 style="color: #60a5fa; font-size: 1rem; margin-bottom: 8px;">Instrucciones:</h3>
+                                <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">
+                                    Suba su archivo de despacho diario en formato <strong>Excel (.xlsx, .xls)</strong> o <strong>CSV (.csv)</strong>.
+                                    El sistema extrae automáticamente los números de factura/remisión detectando columnas como
+                                    <em>REQ. #, Remisión, Factura, No. Factura, Documento, req, req #</em>, etc.
+                                    Luego puede iniciar el picking directamente desde esta vista.
+                                </p>
+                            </div>
+
+                            <div class="form-group mb-4">
+                                <label for="monta-file-input">Seleccionar Archivo (Excel o CSV)</label>
+                                <input type="file" id="monta-file-input" class="form-control"
+                                    accept=".csv, .xlsx, .xls"
+                                    onchange="procesarArchivoDespacho()">
+                            </div>
+
+                            <!-- Resultado de extracción -->
+                            <div id="monta-archivo-resultado" style="display:none;" class="mt-4">
+                                <div class="flex-row justify-between align-items-center mb-3">
+                                    <h3 style="font-size: 1.05rem; margin: 0;">Facturas / Remisiones detectadas en el archivo</h3>
+                                    <span class="badge" id="monta-archivo-total">0 facturas</span>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>No. Factura / Remisión</th>
+                                                <th class="text-center">Ítems en archivo</th>
+                                                <th class="text-center">Estado en WMS</th>
+                                                <th class="text-center">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="monta-archivo-body">
+                                            <!-- Dinámico -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>
