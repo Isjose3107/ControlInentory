@@ -249,6 +249,18 @@ const apiRoutes = {
         const result = await db.createVenta(body);
         return sendJSON(res, 200, result);
     },
+    'POST /api/ventas/bulk': async (req, res) => {
+        try {
+            const body = await getRequestBody(req);
+            if (!body.ventas || !Array.isArray(body.ventas)) {
+                return sendJSON(res, 400, { error: 'Datos de importación masiva inválidos.' });
+            }
+            const result = await db.createVentasBulk(body.ventas);
+            return sendJSON(res, 200, result);
+        } catch (err) {
+            return sendJSON(res, 500, { error: err.message });
+        }
+    },
 
     // CONSOLIDADO DIARIO DE VENTAS
     'GET /api/ventas/consolidado': async (req, res, parsedUrl) => {

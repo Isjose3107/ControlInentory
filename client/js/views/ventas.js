@@ -14,18 +14,22 @@ let ventaItemCount = 0;
 let csvParsedVentas = [];
 
 const ventaAliasMap = {
-    remision: ['remisión', 'remision', 'factura', 'no. factura', 'nro factura', 'venta', 'no. venta', 'documento', 'remision #', 'factura #', 'req. #', 'req.#', 'req #', 'req', 'requisicion', 'requisición', 'no. req', 'nro req'],
+    remision: ['remisión', 'remision', 'factura', 'no. factura', 'nro factura', 'venta', 'no. venta', 'documento', 'remision #', 'factura #', 'req. #', 'req.#', 'req #', 'req', 'requisicion', 'requisición', 'no. req', 'nro req', 'pedidolog'],
     fecha: ['fecha', 'fecha factura', 'fecha remision', 'date', 'fecha_emision', 'emision', 'fecha elab', 'fecha elab.', 'fechaelab', 'fech elab', 'fech elab.', 'fech requ', 'fech requ.', 'fecha requ'],
-    cliente_nit: ['tercero', 'cliente', 'nit cliente', 'cliente_nit', 'nit', 'nombre cliente', 'nombre_cliente', 'razon social', 'razón social', 'solicitante', 'c.c. destino', 'c.c destino', 'cc destino', 'destino'],
-    codigo_producto: ['código', 'codigo', 'codigo producto', 'código producto', 'referencia', 'ref', 'item_code', 'codigo_articulo', 'articulo', 'producto', 'elemento', 'cod', 'cod.'],
-    descripcion: ['descripción', 'descripcion', 'descripción producto', 'nombre producto', 'detalle', 'item_desc'],
-    cantidad: ['unidades', 'cant_vendida', 'qty', 'unds', 'und'],
+    cliente_nit: ['tercero', 'cliente', 'nit cliente', 'cliente_nit', 'nit', 'nombre cliente', 'nombre_cliente', 'razon social', 'razón social', 'solicitante', 'c.c. destino', 'c.c destino', 'cc destino', 'destino', 'cod cliente', 'nit_cliente'],
+    cliente_nombre: ['cliente', 'nombre cliente', 'nombre_cliente', 'razon social', 'razón social'],
+    codigo_producto: ['código', 'codigo', 'codigo producto', 'código producto', 'referencia', 'ref', 'item_code', 'codigo_articulo', 'articulo', 'producto', 'elemento', 'cod', 'cod.', 'artislog', 'art cliente', 'art_cliente'],
+    descripcion: ['descripción', 'descripcion', 'descripción producto', 'nombre producto', 'detalle', 'item_desc', 'articulo'],
+    cantidad: ['unidades', 'cant_vendida', 'qty', 'unds', 'und', 'cantid', 'cantidad'],
     valor_unitario: ['valor_unitario', 'valor unitario', 'precio', 'v_unitario', 'v. unitario', 'precio_unitario', 'precio unitario', 'cantidad', 'cant', 'cant.'],
     observaciones: ['observaciones', 'observación', 'observacion', 'notas', 'nota', 'comentarios'],
     item_num: ['item', 'ítem', 'linea', 'línea', 'no. item', 'nro item'],
     unidad_medida: ['u.m.', 'u.m', 'um', 'um.', 'unidad medida', 'unidad_medida', 'uom'],
     bodega: ['bode surt', 'bode surt.', 'bodega', 'bode'],
-    cava_almacen: ['cava', 'almacen', 'almacén', 'almacenam', 'cava almacen', 'cava almacen m', 'cava almacena m', 'cava almacenam', 'almacenamiento', 'cava/almacen', 'almacenam.', 'cava/almacen/almacenam', 'cava/almacen/almacenamiento']
+    cava_almacen: ['cava', 'almacen', 'almacén', 'almacenam', 'cava almacen', 'cava almacen m', 'cava almacena m', 'cava almacenam', 'almacenamiento', 'cava/almacen', 'almacenam.', 'cava/almacen/almacenam', 'cava/almacen/almacenamiento'],
+    direccion: ['direccion', 'dirección'],
+    ruta: ['ruta'],
+    placa: ['placa']
 };
 
 function buscarClienteNit(terceroText) {
@@ -157,6 +161,9 @@ export function calcularTotalesVenta() {
 
 export function limpiarFormVenta() {
     document.getElementById('venta-remision').value = '';
+    document.getElementById('venta-direccion').value = '';
+    document.getElementById('venta-ruta').value = '';
+    document.getElementById('venta-placa').value = '';
     document.getElementById('venta-observaciones').value = '';
     document.getElementById('venta-iva').value = '19';
     document.getElementById('venta-total-general').textContent = '$0.00';
@@ -173,6 +180,9 @@ export async function guardarVenta() {
     const remision = document.getElementById('venta-remision').value.trim();
     const fecha = document.getElementById('venta-fecha').value;
     const cliente_nit = document.getElementById('venta-cliente').value;
+    const direccion = document.getElementById('venta-direccion').value.trim();
+    const ruta = document.getElementById('venta-ruta').value.trim();
+    const placa = document.getElementById('venta-placa').value.trim();
     const observaciones = document.getElementById('venta-observaciones').value;
     const iva = Number(document.getElementById('venta-iva').value);
 
@@ -203,7 +213,7 @@ export async function guardarVenta() {
 
     try {
         await fetchAPI('/ventas', 'POST', {
-            remision, fecha, cliente_nit, observaciones, iva, items, estado: 'Pendiente'
+            remision, fecha, cliente_nit, observaciones, iva, items, estado: 'Pendiente', direccion, ruta, placa
         });
         alert('Remisión / Factura de Venta guardada con éxito.');
         limpiarFormVenta();
@@ -243,6 +253,9 @@ export async function consultarVentaForm() {
         document.getElementById('venta-cliente').value = v.cliente_nit;
         cargarDatosClienteVenta();
 
+        document.getElementById('venta-direccion').value = v.direccion || '';
+        document.getElementById('venta-ruta').value = v.ruta || '';
+        document.getElementById('venta-placa').value = v.placa || '';
         document.getElementById('venta-observaciones').value = v.observaciones || '';
         document.getElementById('venta-iva').value = v.iva;
 
@@ -325,7 +338,11 @@ function parseExcelOrCSVToVentas(rows, colMapping) {
     let lastRemision = '';
     let lastFecha = '';
     let lastClienteNit = '';
+    let lastClienteNombre = '';
     let lastObservaciones = '';
+    let lastDireccion = '';
+    let lastRuta = '';
+    let lastPlaca = '';
 
     const startIndex = colMapping._headerIndex + 1;
 
@@ -336,6 +353,7 @@ function parseExcelOrCSVToVentas(rows, colMapping) {
         let remisionRaw = colMapping.remision !== -1 ? String(row[colMapping.remision] || '').trim() : '';
         let fechaRaw = colMapping.fecha !== -1 ? String(row[colMapping.fecha] || '').trim() : '';
         let clienteRaw = colMapping.cliente_nit !== -1 ? String(row[colMapping.cliente_nit] || '').trim() : '';
+        let clienteNombreRaw = colMapping.cliente_nombre !== -1 ? String(row[colMapping.cliente_nombre] || '').trim() : '';
         let codigoRaw = colMapping.codigo_producto !== -1 ? String(row[colMapping.codigo_producto] || '').trim() : '';
         let descripcionRaw = colMapping.descripcion !== -1 ? String(row[colMapping.descripcion] || '').trim() : '';
         let cantidadRaw = colMapping.cantidad !== -1 ? String(row[colMapping.cantidad] || '').trim() : '';
@@ -345,6 +363,10 @@ function parseExcelOrCSVToVentas(rows, colMapping) {
         let umRaw = colMapping.unidad_medida !== -1 ? String(row[colMapping.unidad_medida] || '').trim() : '';
         let bodegaRaw = colMapping.bodega !== -1 ? String(row[colMapping.bodega] || '').trim() : '';
         let cavaRaw = colMapping.cava_almacen !== -1 ? String(row[colMapping.cava_almacen] || '').trim() : '';
+        let direccionRaw = colMapping.direccion !== -1 ? String(row[colMapping.direccion] || '').trim() : '';
+        let ciudadRaw = colMapping.ciudad !== -1 ? String(row[colMapping.ciudad] || '').trim() : '';
+        let rutaRaw = colMapping.ruta !== -1 ? String(row[colMapping.ruta] || '').trim() : '';
+        let placaRaw = colMapping.placa !== -1 ? String(row[colMapping.placa] || '').trim() : '';
 
         if (!remisionRaw && !codigoRaw && !clienteRaw) continue;
 
@@ -357,11 +379,23 @@ function parseExcelOrCSVToVentas(rows, colMapping) {
         if (clienteRaw) lastClienteNit = clienteRaw;
         else clienteRaw = lastClienteNit;
 
+        if (clienteNombreRaw) lastClienteNombre = clienteNombreRaw;
+        else clienteNombreRaw = lastClienteNombre;
+
         if (observacionesRaw) lastObservaciones = observacionesRaw;
         else observacionesRaw = lastObservaciones;
 
+        if (direccionRaw) lastDireccion = direccionRaw;
+        else direccionRaw = lastDireccion;
+
+        if (rutaRaw) lastRuta = rutaRaw;
+        else rutaRaw = lastRuta;
+
+        if (placaRaw) lastPlaca = placaRaw;
+        else placaRaw = lastPlaca;
+
         if (!remisionRaw) continue;
-        if (!codigoRaw) continue;
+        // NOTE: filas sin codigo se incluyen igual con placeholder — TODO se sube como FACTURA
 
         const resolvedNit = buscarClienteNit(clienteRaw);
         let parsedFecha = formatExcelDate(fechaRaw);
@@ -370,6 +404,10 @@ function parseExcelOrCSVToVentas(rows, colMapping) {
         if (!ventasMap.has(remisionRaw)) {
             const obsParts = [];
             if (observacionesRaw) obsParts.push(observacionesRaw);
+            if (direccionRaw) obsParts.push(`Dirección: ${direccionRaw}`);
+            if (ciudadRaw) obsParts.push(`Ciudad: ${ciudadRaw}`);
+            if (rutaRaw) obsParts.push(`Ruta: ${rutaRaw}`);
+            if (placaRaw) obsParts.push(`Placa: ${placaRaw}`);
             if (cavaRaw) obsParts.push(`Cava: ${cavaRaw}`);
             if (bodegaRaw) obsParts.push(`Bodega: ${bodegaRaw}`);
             const obsText = obsParts.join(' | ') || 'Importado de Excel/CSV';
@@ -382,6 +420,13 @@ function parseExcelOrCSVToVentas(rows, colMapping) {
                 iva: 0,
                 estado: 'Pendiente',
                 items: [],
+                direccion: direccionRaw || '',
+                ruta: rutaRaw || '',
+                placa: placaRaw || '',
+                _cliente_nombre: clienteNombreRaw || resolvedNit,
+                _direccion: direccionRaw || '',
+                _ruta: rutaRaw || '',
+                _placa: placaRaw || '',
                 _bodega: bodegaRaw,
                 _cava_almacen: cavaRaw
             });
@@ -410,14 +455,18 @@ function parseExcelOrCSVToVentas(rows, colMapping) {
             finalPrice = prod.valor_venta || 0;
         }
 
-        venta.items.push({
-            item: itemNumRaw || String(venta.items.length + 1),
-            codigo: prod ? prod.codigo : codigoRaw,
-            descripcion: descripcionRaw || (prod ? prod.descripcion : ''),
-            cantidad: finalQty,
-            v_unitario: finalPrice,
-            unidad_medida: umRaw || (prod ? prod.unidad_compra || 'Und' : 'Und')
-        });
+        // Solo agregar ítem si hay código o descripción; filas completamente vacías de producto se omiten
+        if (codigoRaw || descripcionRaw) {
+            venta.items.push({
+                item: itemNumRaw || String(venta.items.length + 1),
+                codigo: prod ? prod.codigo : (codigoRaw || 'SIN-CODIGO'),
+                descripcion: descripcionRaw || (prod ? prod.descripcion : 'PRODUCTO POR DEFINIR'),
+                cantidad: finalQty || 1,
+                v_unitario: finalPrice,
+                unidad_medida: umRaw || (prod ? prod.unidad_compra || 'Und' : 'Und'),
+                _requiere_revision: !prod
+            });
+        }
     }
 
     return Array.from(ventasMap.values());
@@ -438,15 +487,14 @@ export function renderCSVPreviewVentas() {
         return;
     }
 
-    let allValid = true;
-
-    csvParsedVentas.forEach(venta => {
+    // TODOS se importan — datos faltantes se marcan con advertencia pero NO bloquean
+    csvParsedVentas.forEach((venta, idx) => {
         const cliExists = state.clientes.some(c => c.nit === venta.cliente_nit);
-        let cliNombre = venta.cliente_nit;
-        let errors = [];
+        let cliNombre = venta.cliente_nit || '(SIN CLIENTE)';
+        let warnings = [];
 
-        if (!cliExists) {
-            errors.push(`Cliente NIT/Nombre ${venta.cliente_nit} no registrado`);
+        if (!venta.cliente_nit || !cliExists) {
+            warnings.push('Cliente no registrado');
         } else {
             const c = state.clientes.find(x => x.nit === venta.cliente_nit);
             cliNombre = c.nombre;
@@ -454,35 +502,34 @@ export function renderCSVPreviewVentas() {
 
         venta.items.forEach(item => {
             const prod = buscarProductoPorCodigo(item.codigo);
-            if (!prod) {
-                errors.push(`Producto ${item.codigo} no existe`);
-            } else {
+            if (prod) {
                 item.descripcion = prod.descripcion;
+            } else if (item.codigo !== 'SIN-CODIGO') {
+                warnings.push(`Producto '${item.codigo}' no en catálogo`);
             }
         });
 
+        if (venta.items.length === 0) warnings.push('Sin ítems — agregar productos al editar');
+
         let statusHTML = '';
-        if (errors.length === 0) {
+        if (warnings.length === 0) {
             statusHTML = '<span class="badge badge-completed">Válida</span>';
         } else {
-            statusHTML = `<span class="badge badge-danger" title="${errors.join(', ')}">Error (${errors.length} novedades)</span>`;
-            allValid = false;
+            statusHTML = `<span class="badge" style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:4px;font-size:0.75rem;" title="${warnings.join(' | ')}">⚠️ ${warnings.length} advertencia(s)</span>`;
         }
 
-        let totalUnidades = venta.items.reduce((sum, item) => sum + item.cantidad, 0);
-        let total = venta.items.reduce((sum, item) => sum + (item.cantidad * item.v_unitario), 0);
-        let ivaVal = total * (venta.iva / 100);
+        let totalUnidades = venta.items.reduce((sum, item) => sum + (item.cantidad || 0), 0);
+        let total = venta.items.reduce((sum, item) => sum + ((item.cantidad || 0) * (item.v_unitario || 0)), 0);
+        let ivaVal = total * ((venta.iva || 0) / 100);
         let totalGeneral = total + ivaVal;
 
-        let actionHTML = '';
-        if (errors.length === 0) {
-            actionHTML = `<button class="btn btn-success btn-sm" onclick="importarUnaVenta('${venta.remision}')" style="padding: 2px 6px; font-size: 0.8rem; border-radius: var(--radius-sm);">Importar</button>`;
-        } else {
-            actionHTML = `<button class="btn btn-success btn-sm" disabled style="padding: 2px 6px; font-size: 0.8rem; opacity: 0.5; cursor: not-allowed; border-radius: var(--radius-sm);">Importar</button>`;
-        }
+        // Siempre habilitado — TODA fila se puede importar y editar luego
+        const actionHTML = `
+            <button class="btn btn-success btn-sm" onclick="importarUnaVenta('${venta.remision}')" style="padding: 2px 6px; font-size: 0.8rem; border-radius: var(--radius-sm);">Importar</button>
+        `;
 
         tbody.innerHTML += `
-            <tr>
+            <tr style="${warnings.length > 0 ? 'background: rgba(245,158,11,0.05);' : ''}">
                 <td><strong>${venta.remision}</strong></td>
                 <td>${cliNombre}</td>
                 <td>${venta.fecha}</td>
@@ -496,7 +543,8 @@ export function renderCSVPreviewVentas() {
         `;
     });
 
-    btnConfirmar.disabled = !allValid;
+    // Siempre habilitar el botón de confirmación — TODO se sube como FACTURA
+    btnConfirmar.disabled = false;
     previewPanel.style.display = 'block';
 }
 
@@ -514,11 +562,17 @@ export async function confirmarImportacionCSVVentas() {
     const confirmacion = confirm(`¿Confirmar importación masiva de ${csvParsedVentas.length} factura(s)/remisión(es)?`);
     if (!confirmacion) return;
 
+    const btnConfirmar = document.getElementById('btnConfirmarImportacionCSVVentas');
+    const originalText = btnConfirmar ? btnConfirmar.textContent : '';
+
+    if (btnConfirmar) {
+        btnConfirmar.disabled = true;
+        btnConfirmar.textContent = 'Procesando importación masiva...';
+    }
+
     try {
-        for (const venta of csvParsedVentas) {
-            await fetchAPI('/ventas', 'POST', venta);
-        }
-        alert('Facturas de venta importadas correctamente.');
+        const res = await fetchAPI('/ventas/bulk', 'POST', { ventas: csvParsedVentas });
+        alert(`Se han importado exitosamente ${res.count || csvParsedVentas.length} factura(s)/remisión(es).`);
         cancelarImportacionCSVVentas();
         switchVentaTab('crear');
         if (window.loadCatalogos) {
@@ -527,6 +581,11 @@ export async function confirmarImportacionCSVVentas() {
     } catch (err) {
         console.error(err);
         alert(`Error al importar facturas: ${err.message}`);
+    } finally {
+        if (btnConfirmar) {
+            btnConfirmar.disabled = false;
+            btnConfirmar.textContent = originalText;
+        }
     }
 }
 

@@ -878,7 +878,9 @@ const devAliasMap = {
     fecha_caducidad: ['fecha caduc', 'fecha caducidad', 'vencimiento', 'fecha vencimiento', 'fecha vcto', 'caducidad', 'fec caduc'],
     ciudad: ['ciudad', 'city', 'municipio'],
     direccion: ['direccion', 'dirección'],
-    ubicacion: ['ubicacion', 'ubicación', 'posicion', 'posición', 'rack', 'loc', 'location']
+    ubicacion: ['ubicacion', 'ubicación', 'posicion', 'posición', 'rack', 'loc', 'location'],
+    ruta: ['ruta'],
+    placa: ['placa']
 };
 
 export function procesarArchivoCSVDevoluciones() {
@@ -1008,6 +1010,8 @@ function parseExcelOrCSVToDevoluciones(rows, colMapping) {
     let lastClienteNombre = '';
     let lastAlmacen = '';
     let lastCiudad = '';
+    let lastRuta = '';
+    let lastPlaca = '';
 
     const startIndex = colMapping._headerIndex + 1;
 
@@ -1033,6 +1037,8 @@ function parseExcelOrCSVToDevoluciones(rows, colMapping) {
         let loteRaw = colMapping.lote !== -1 ? String(row[colMapping.lote] || '').trim() : '';
         let fechaCaducRaw = colMapping.fecha_caducidad !== -1 ? String(row[colMapping.fecha_caducidad] || '').trim() : '';
         let direccionRaw = colMapping.direccion !== -1 ? String(row[colMapping.direccion] || '').trim() : '';
+        let rutaRaw = colMapping.ruta !== -1 ? String(row[colMapping.ruta] || '').trim() : '';
+        let placaRaw = colMapping.placa !== -1 ? String(row[colMapping.placa] || '').trim() : '';
 
         // Si la fila está completamente vacía, saltar
         if (!facturaRaw && !codigoRaw && !clienteNitRaw && !artislogRaw && !artClienteRaw) continue;
@@ -1056,14 +1062,19 @@ function parseExcelOrCSVToDevoluciones(rows, colMapping) {
         if (ciudadRaw) lastCiudad = ciudadRaw;
         else ciudadRaw = lastCiudad;
 
+        if (rutaRaw) lastRuta = rutaRaw;
+        else rutaRaw = lastRuta;
+
+        if (placaRaw) lastPlaca = placaRaw;
+        else placaRaw = lastPlaca;
+
         if (!facturaRaw) continue;
 
-        // Determinar código de producto
-        let productCode = artislogRaw || artClienteRaw || codigoRaw;
-        if (!productCode) continue;
+        // Determinar código de producto — si falta, usar SIN-CODIGO
+        let productCode = artislogRaw || artClienteRaw || codigoRaw || 'SIN-CODIGO';
 
         // Resolver NIT del cliente
-        let resolvedNit = fastBuscarClienteNit(clienteNitRaw, clienteNombreRaw);
+        let resolvedNit = fastBuscarClienteNit(clienteNitRaw, clienteNombreRaw) || 'GENERICO';
 
         // Formatear Fecha
         let parsedFecha = formatExcelDate(fechaRaw);
@@ -1078,8 +1089,8 @@ function parseExcelOrCSVToDevoluciones(rows, colMapping) {
                 ciudad: ciudadRaw || 'Barranquilla',
                 almacen: almacenRaw || 'BGA',
                 fecha: parsedFecha,
-                ruta: '',
-                placa: '',
+                ruta: rutaRaw || '',
+                placa: placaRaw || '',
                 items: [],
                 observaciones: `Cargue Masivo Excel - Ref: ${direccionRaw || ''}`.trim(),
                 estado_producto: 'Bueno',
@@ -1217,26 +1228,57 @@ export async function importarUnaDevolucion(factura) {
     if (devIndex === -1) return;
 
     const dev = csvParsedDevoluciones[devIndex];
+    const importType = document.querySelector('input[name="import-type-dev"]:checked')?.value || 'factura';
 
     try {
-        // 1. Si el cliente no existe, crearlo
-        const cliExists = state.clientes.some(c => String(c.nit) === String(dev.cliente_nit));
-        if (!cliExists) {
-            await fetchAPI('/clientes', 'POST', {
-                nit: dev.cliente_nit,
-                nombre: dev.cliente_nombre,
-                telefono: 'N/A',
-                direccion: dev.observaciones.replace('Cargue Masivo Excel - Ref: ', '') || 'N/A',
-                correo: 'noreply@habitad-wms.com'
-            });
-            // Recargar clientes localmente
-            state.clientes = await fetchAPI('/clientes') || [];
-            populateClientesSelect('dev-cliente');
-        }
+        if (importType === 'factura') {
+            const items = dev.items.map(item => ({
+                item: item.item || '1',
+                codigo: item.codigo,
+                descripcion: item.descripcion,
+                cantidad: item.unidades || 1,
+                v_unitario: 0,
+                unidad_medida: item.unidad_medida || 'Und'
+            }));
+            const venta = {
+                remision: dev.factura,
+                fecha: dev.fecha,
+                cliente_nit: dev.cliente_nit,
+                observaciones: dev.observaciones,
+                iva: 0,
+                estado: 'Pendiente',
+                items: items,
+                direccion: dev.observaciones.replace('Cargue Masivo Excel - Ref: ', '') || '',
+                ruta: dev.ruta || '',
+                placa: dev.placa || '',
+                _cliente_nombre: dev.cliente_nombre,
+                _direccion: dev.observaciones.replace('Cargue Masivo Excel - Ref: ', '') || '',
+                _ruta: dev.ruta || '',
+                _placa: dev.placa || ''
+            };
 
-        // 2. Importar la devolución
-        const res = await fetchAPI('/devoluciones', 'POST', dev);
-        alert(`Devolución Factura ${factura} importada con éxito. Consecutivo: ${res.id}`);
+            await fetchAPI('/ventas', 'POST', venta);
+            alert(`Factura/Remisión ${factura} importada con éxito.`);
+        } else {
+            // 1. Si el cliente no existe, crearlo
+            const cliExists = state.clientes.some(c => String(c.nit) === String(dev.cliente_nit));
+            if (!cliExists) {
+                await fetchAPI('/clientes', 'POST', {
+                    nit: dev.cliente_nit,
+                    nombre: dev.cliente_nombre,
+                    telefono: 'N/A',
+                    direccion: dev.observaciones.replace('Cargue Masivo Excel - Ref: ', '') || 'N/A',
+                    correo: 'noreply@habitad-wms.com'
+                });
+                // Recargar clientes localmente
+                state.clientes = await fetchAPI('/clientes') || [];
+                populateClientesSelect('dev-cliente');
+            }
+
+            // 2. Importar la devolución
+            const res = await fetchAPI('/devoluciones', 'POST', dev);
+            alert(`Devolución Factura ${factura} importada con éxito. Consecutivo: ${res.id}`);
+        }
 
         // Eliminar de la lista de vista previa
         csvParsedDevoluciones.splice(devIndex, 1);
@@ -1253,7 +1295,7 @@ export async function importarUnaDevolucion(factura) {
         loadDevolucionesHistorial();
     } catch (err) {
         console.error(err);
-        alert(`Error al importar la devolución de la factura ${factura}: ${err.message}`);
+        alert(`Error al importar: ${err.message}`);
     }
 }
 
@@ -1268,8 +1310,7 @@ export function cancelarImportacionCSVDevoluciones() {
 export async function confirmarImportacionCSVDevoluciones() {
     if (csvParsedDevoluciones.length === 0) return;
 
-    const confirmacion = confirm(`¿Confirmar importación masiva de ${csvParsedDevoluciones.length} devolución(es)?`);
-    if (!confirmacion) return;
+    const importType = document.querySelector('input[name="import-type-dev"]:checked')?.value || 'factura';
 
     const btnConfirmar = document.getElementById('btnConfirmarImportacionCSVDev');
     const originalText = btnConfirmar ? btnConfirmar.textContent : '';
@@ -1282,24 +1323,66 @@ export async function confirmarImportacionCSVDevoluciones() {
 
     if (statusEl) {
         statusEl.style.display = 'block';
-        statusEl.textContent = '⏳ Subiendo y registrando devoluciones en el servidor. Esto puede tomar unos segundos...';
+        statusEl.textContent = '⏳ Subiendo y registrando en el servidor. Esto puede tomar unos segundos...';
     }
 
     try {
-        // ponytail: call optimized bulk API endpoint in a single request instead of sequential loops
-        const res = await fetchAPI('/devoluciones/bulk', 'POST', { devoluciones: csvParsedDevoluciones });
-        
-        alert(`Se han importado exitosamente ${res.count || csvParsedDevoluciones.length} devoluciones.`);
-        
-        // Recargar datos maestros
-        state.clientes = await fetchAPI('/clientes') || [];
-        populateClientesSelect('dev-cliente');
-        state.stockPorUbicacion = await fetchAPI('/inventario/stock/ubicaciones') || [];
-        state.productos = await fetchAPI('/productos') || [];
+        if (importType === 'factura') {
+            // Map devoluciones to ventas
+            const ventasList = csvParsedDevoluciones.map(d => {
+                const items = d.items.map(item => ({
+                    item: item.item || '1',
+                    codigo: item.codigo,
+                    descripcion: item.descripcion,
+                    cantidad: item.unidades || 1,
+                    v_unitario: 0,
+                    unidad_medida: item.unidad_medida || 'Und'
+                }));
+                
+                return {
+                    remision: d.factura,
+                    fecha: d.fecha,
+                    cliente_nit: d.cliente_nit,
+                    observaciones: d.observaciones,
+                    iva: 0,
+                    estado: 'Pendiente',
+                    items: items,
+                    direccion: d.observaciones.replace('Cargue Masivo Excel - Ref: ', '') || '',
+                    ruta: d.ruta || '',
+                    placa: d.placa || '',
+                    _cliente_nombre: d.cliente_nombre,
+                    _direccion: d.observaciones.replace('Cargue Masivo Excel - Ref: ', '') || '',
+                    _ruta: d.ruta || '',
+                    _placa: d.placa || ''
+                };
+            });
 
-        // Limpiar vista previa y cambiar de pestaña
-        cancelarImportacionCSVDevoluciones();
-        switchDevTab('historial');
+            const res = await fetchAPI('/ventas/bulk', 'POST', { ventas: ventasList });
+            alert(`Se han importado exitosamente ${res.count || ventasList.length} facturas de venta.`);
+            
+            // Recargar datos maestros
+            state.clientes = await fetchAPI('/clientes') || [];
+            if (window.populateClientesSelect) window.populateClientesSelect('venta-cliente');
+            state.stockPorUbicacion = await fetchAPI('/inventario/stock/ubicaciones') || [];
+            state.productos = await fetchAPI('/productos') || [];
+
+            // Limpiar y cambiar de pestaña
+            cancelarImportacionCSVDevoluciones();
+            if (window.showView) window.showView('ventas');
+            if (window.initDevoluciones) window.initDevoluciones();
+        } else {
+            // Original logic for returns (devoluciones)
+            const res = await fetchAPI('/devoluciones/bulk', 'POST', { devoluciones: csvParsedDevoluciones });
+            alert(`Se han importado exitosamente ${res.count || csvParsedDevoluciones.length} devoluciones.`);
+            
+            state.clientes = await fetchAPI('/clientes') || [];
+            populateClientesSelect('dev-cliente');
+            state.stockPorUbicacion = await fetchAPI('/inventario/stock/ubicaciones') || [];
+            state.productos = await fetchAPI('/productos') || [];
+
+            cancelarImportacionCSVDevoluciones();
+            switchDevTab('historial');
+        }
     } catch (err) {
         console.error(err);
         alert(`Error durante la importación masiva: ${err.message}`);

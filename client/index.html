@@ -937,6 +937,21 @@
                             </div>
 
                             <div class="form-row">
+                                <div class="form-group flex-2">
+                                    <label for="venta-direccion">Dirección de Entrega</label>
+                                    <input type="text" id="venta-direccion" class="form-control" placeholder="Dirección del cliente">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="venta-ruta">Ruta</label>
+                                    <input type="text" id="venta-ruta" class="form-control" placeholder="Número de Ruta">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="venta-placa">Placa Vehículo</label>
+                                    <input type="text" id="venta-placa" class="form-control" placeholder="Placa">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
                                 <div class="form-group flex-1">
                                     <label for="venta-cliente">Cliente</label>
                                     <select id="venta-cliente" class="form-control"
@@ -1757,6 +1772,20 @@
                                 </p>
                                 <button class="btn btn-secondary btn-sm mt-3"
                                     onclick="descargarPlantillaCSVDevoluciones()">Descargar Plantilla Excel</button>
+                            </div>
+
+                            <div class="form-group mb-4" style="background: rgba(59, 130, 246, 0.05); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-md);">
+                                <label style="font-weight: 600; display: block; margin-bottom: 8px;">Tipo de Importación de este archivo:</label>
+                                <div class="flex-row gap-4">
+                                    <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 500;">
+                                        <input type="radio" name="import-type-dev" value="factura" checked style="width: auto; height: auto;">
+                                        📄 Importar Todo como Facturas de Venta (OUT)
+                                    </label>
+                                    <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 500;">
+                                        <input type="radio" name="import-type-dev" value="devolucion" style="width: auto; height: auto;">
+                                        🔄 Importar como Devolución de Mercancía (IN)
+                                    </label>
+                                </div>
                             </div>
 
                             <div class="form-group mb-4">
