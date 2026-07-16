@@ -905,9 +905,15 @@ export function procesarArchivoCSVDevoluciones() {
             }
             try {
                 csvParsedDevoluciones = parseExcelOrCSVToDevoluciones(rows, colMapping);
+                const totalItems = csvParsedDevoluciones.reduce((sum, d) => sum + d.items.length, 0);
                 renderCSVPreviewDevoluciones();
                 if (statusEl) {
-                    statusEl.textContent = `✅ Archivo leído con éxito. Se prepararon ${csvParsedDevoluciones.length} devoluciones.`;
+                    const importType = document.querySelector('input[name="import-type-dev"]:checked')?.value || 'factura';
+                    if (importType === 'factura') {
+                        statusEl.textContent = `✅ Archivo leído con éxito. Se procesaron ${rows.length - (colMapping._headerIndex + 1)} filas del archivo y se prepararon ${csvParsedDevoluciones.length} facturas de venta (que contienen el total de ${totalItems} productos/filas).`;
+                    } else {
+                        statusEl.textContent = `✅ Archivo leído con éxito. Se procesaron ${rows.length - (colMapping._headerIndex + 1)} filas del archivo y se prepararon ${csvParsedDevoluciones.length} devoluciones.`;
+                    }
                 }
             } catch (parseErr) {
                 if (statusEl) statusEl.style.display = 'none';
@@ -1137,8 +1143,29 @@ export function renderCSVPreviewDevoluciones() {
     if (!tbody || !previewPanel || !btnConfirmar) return;
     tbody.innerHTML = '';
 
+    const importType = document.querySelector('input[name="import-type-dev"]:checked')?.value || 'factura';
+    
+    // Cambiar dinámicamente títulos y botones para reflejar "Facturas de Venta" en lugar de "Devoluciones"
+    const titleEl = previewPanel.querySelector('h3');
+    if (titleEl) {
+        if (importType === 'factura') {
+            titleEl.textContent = 'Vista Previa de Facturas de Venta a Importar';
+        } else {
+            titleEl.textContent = 'Vista Previa de Devoluciones a Importar';
+        }
+    }
+    if (btnConfirmar) {
+        if (importType === 'factura') {
+            btnConfirmar.textContent = 'Confirmar Importación de Facturas de Venta';
+        } else {
+            btnConfirmar.textContent = 'Confirmar Importación de Devoluciones';
+        }
+    }
+
     if (csvParsedDevoluciones.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No se encontraron devoluciones válidas para importar.</td></tr>';
+        tbody.innerHTML = importType === 'factura' 
+            ? '<tr><td colspan="8" class="text-center text-muted">No se encontraron facturas válidas para importar.</td></tr>'
+            : '<tr><td colspan="8" class="text-center text-muted">No se encontraron devoluciones válidas para importar.</td></tr>';
         btnConfirmar.disabled = true;
         previewPanel.style.display = 'block';
         return;
@@ -1209,10 +1236,12 @@ export function renderCSVPreviewDevoluciones() {
     });
 
     if (csvParsedDevoluciones.length > limit) {
+        const totalItems = csvParsedDevoluciones.reduce((sum, d) => sum + d.items.length, 0);
+        const noun = importType === 'factura' ? 'facturas' : 'devoluciones';
         htmlRows.push(`
             <tr>
                 <td colspan="8" class="text-center" style="font-weight: 600; color: var(--color-primary); background-color: rgba(59, 130, 246, 0.05);">
-                    💡 Mostrando las primeras ${limit} de ${csvParsedDevoluciones.length} devoluciones encontradas en el archivo. Todas se procesarán al confirmar.
+                    💡 Mostrando las primeras ${limit} de ${csvParsedDevoluciones.length} ${noun} preparadas (que agrupan el total de ${totalItems} productos/filas). ¡Todos los registros se procesarán al confirmar!
                 </td>
             </tr>
         `);
@@ -1450,4 +1479,21 @@ window.cancelarImportacionCSVDevoluciones = cancelarImportacionCSVDevoluciones;
 window.confirmarImportacionCSVDevoluciones = confirmarImportacionCSVDevoluciones;
 window.descargarPlantillaCSVDevoluciones = descargarPlantillaCSVDevoluciones;
 window.importarUnaDevolucion = importarUnaDevolucion;
+window.alCambiarTipoImportacionDev = alCambiarTipoImportacionDev;
+
+export function alCambiarTipoImportacionDev() {
+    if (csvParsedDevoluciones.length > 0) {
+        const statusEl = document.getElementById('csv-import-status-dev');
+        const importType = document.querySelector('input[name="import-type-dev"]:checked')?.value || 'factura';
+        const totalItems = csvParsedDevoluciones.reduce((sum, d) => sum + d.items.length, 0);
+        if (statusEl) {
+            if (importType === 'factura') {
+                statusEl.textContent = `✅ Archivo leído con éxito. Se prepararon ${csvParsedDevoluciones.length} facturas de venta (que contienen el total de ${totalItems} productos/filas).`;
+            } else {
+                statusEl.textContent = `✅ Archivo leído con éxito. Se prepararon ${csvParsedDevoluciones.length} devoluciones.`;
+            }
+        }
+        renderCSVPreviewDevoluciones();
+    }
+}
 

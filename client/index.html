@@ -1778,11 +1778,11 @@
                                 <label style="font-weight: 600; display: block; margin-bottom: 8px;">Tipo de Importación de este archivo:</label>
                                 <div class="flex-row gap-4">
                                     <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 500;">
-                                        <input type="radio" name="import-type-dev" value="factura" checked style="width: auto; height: auto;">
+                                        <input type="radio" name="import-type-dev" value="factura" checked onchange="alCambiarTipoImportacionDev()" style="width: auto; height: auto;">
                                         📄 Importar Todo como Facturas de Venta (OUT)
                                     </label>
                                     <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 500;">
-                                        <input type="radio" name="import-type-dev" value="devolucion" style="width: auto; height: auto;">
+                                        <input type="radio" name="import-type-dev" value="devolucion" onchange="alCambiarTipoImportacionDev()" style="width: auto; height: auto;">
                                         🔄 Importar como Devolución de Mercancía (IN)
                                     </label>
                                 </div>
