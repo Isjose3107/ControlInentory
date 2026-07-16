@@ -106,6 +106,9 @@ const tableDefinitions = [
         items TEXT NOT NULL,
         estado TEXT DEFAULT 'Pendiente',
         auxiliar TEXT,
+        direccion TEXT,
+        ruta TEXT,
+        placa TEXT,
         FOREIGN KEY(cliente_nit) REFERENCES clientes(nit)
     )`,
     `CREATE TABLE IF NOT EXISTS inventario_movimientos (
@@ -157,6 +160,9 @@ async function initTables() {
     const alterColumns = [
         { table: 'usuarios', column: 'correo', type: 'TEXT' },
         { table: 'ventas', column: 'auxiliar', type: 'TEXT' },
+        { table: 'ventas', column: 'direccion', type: 'TEXT' },
+        { table: 'ventas', column: 'ruta', type: 'TEXT' },
+        { table: 'ventas', column: 'placa', type: 'TEXT' },
         { table: 'productos', column: 'unidad_compra', type: 'TEXT', def: "DEFAULT 'Und'" },
         { table: 'productos', column: 'unidad_consumo', type: 'TEXT', def: "DEFAULT 'Und'" },
         { table: 'devoluciones', column: 'fotos', type: 'TEXT' }
@@ -435,27 +441,181 @@ module.exports = {
         return rows;
     },
     async createVenta(body) {
+        // 1. Asegurar existencia del cliente en el maestro (si no existe, crearlo)
+        if (body.cliente_nit) {
+            const clientExists = await executeQuery('SELECT nit FROM clientes WHERE nit = ?', [body.cliente_nit]);
+            if (clientExists.length === 0) {
+                await executeQuery(`
+                    INSERT INTO clientes (nit, nombre, telefono, direccion, correo)
+                    VALUES (?, ?, 'N/A', ?, 'noreply@wms.com')
+                    ON CONFLICT (nit) DO NOTHING
+                `, [body.cliente_nit, body._cliente_nombre || body.cliente_nit, body.direccion || 'N/A']);
+            }
+        }
+
+        // 2. Asegurar existencia de los productos en el catálogo
+        if (body.items) {
+            const items = typeof body.items === 'string' ? JSON.parse(body.items) : body.items;
+            if (Array.isArray(items)) {
+                for (const item of items) {
+                    if (item.codigo) {
+                        const prodExists = await executeQuery('SELECT codigo FROM productos WHERE codigo = ?', [item.codigo]);
+                        if (prodExists.length === 0) {
+                            await executeQuery(`
+                                INSERT INTO productos (codigo, descripcion, peso, valor_venta, marca, alto, largo, ancho, unidad_compra, unidad_consumo) 
+                                VALUES (?, ?, 1.0, 100, 'GENERICA', 10.0, 10.0, 10.0, 'Und', 'Und')
+                                ON CONFLICT (codigo) DO NOTHING
+                            `, [item.codigo, item.descripcion || 'PRODUCTO NUEVO (AUTO-CREADO)']);
+                        }
+                    }
+                }
+            }
+        }
+
+        const n = v => (v === undefined || v === '') ? null : v;
         await executeQuery(`
             INSERT INTO ventas 
-            (remision, fecha, cliente_nit, observaciones, iva, items, estado) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (remision, fecha, cliente_nit, observaciones, iva, items, estado, direccion, ruta, placa) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (remision) DO UPDATE SET 
                 fecha = excluded.fecha,
                 cliente_nit = excluded.cliente_nit,
                 observaciones = excluded.observaciones,
                 iva = excluded.iva,
                 items = excluded.items,
-                estado = excluded.estado
+                estado = excluded.estado,
+                direccion = excluded.direccion,
+                ruta = excluded.ruta,
+                placa = excluded.placa
         `, [
             body.remision,
             body.fecha,
             body.cliente_nit,
-            body.observaciones,
+            n(body.observaciones),
             body.iva || 0,
-            JSON.stringify(body.items),
-            body.estado || 'Pendiente'
+            typeof body.items === 'string' ? body.items : JSON.stringify(body.items),
+            body.estado || 'Pendiente',
+            n(body.direccion),
+            n(body.ruta),
+            n(body.placa)
         ]);
         return { success: true };
+    },
+
+    // ponytail: highly optimized bulk import using pre-cached Maps to bypass per-row SELECT checks and single TRANSACTION block
+    async createVentasBulk(ventasList) {
+        // Pre-cargar productos y clientes existentes en Sets de memoria para búsquedas O(1)
+        const productsRows = await executeQuery('SELECT codigo FROM productos');
+        const existingProducts = new Set(productsRows.map(r => String(r.codigo).trim().toLowerCase()));
+
+        const clientsRows = await executeQuery('SELECT nit FROM clientes');
+        const existingClients = new Set(clientsRows.map(r => String(r.nit).trim().toLowerCase()));
+
+        const runBulkQueries = async (queryExecutor) => {
+            let count = 0;
+            for (const venta of ventasList) {
+                // Asegurar existencia del cliente en el maestro (si no existe, crearlo)
+                if (venta.cliente_nit) {
+                    const normNit = String(venta.cliente_nit).trim().toLowerCase();
+                    if (!existingClients.has(normNit)) {
+                        await queryExecutor(`
+                            INSERT INTO clientes (nit, nombre, telefono, direccion, correo)
+                            VALUES (?, ?, 'N/A', ?, 'noreply@wms.com')
+                            ON CONFLICT (nit) DO NOTHING
+                        `, [venta.cliente_nit, venta._cliente_nombre || venta.cliente_nit, venta._direccion || 'N/A']);
+                        existingClients.add(normNit);
+                    }
+                }
+
+                // Asegurar existencia de los productos en el catálogo
+                if (venta.items) {
+                    for (const item of venta.items) {
+                        if (item.codigo) {
+                            const normCode = String(item.codigo).trim().toLowerCase();
+                            if (!existingProducts.has(normCode)) {
+                                await queryExecutor(`
+                                    INSERT INTO productos (codigo, descripcion, peso, valor_venta, marca, alto, largo, ancho, unidad_compra, unidad_consumo) 
+                                    VALUES (?, ?, 1.0, 100, 'GENERICA', 10.0, 10.0, 10.0, 'Und', 'Und')
+                                    ON CONFLICT (codigo) DO NOTHING
+                                `, [item.codigo, item.descripcion || 'PRODUCTO NUEVO (AUTO-CREADO)']);
+                                existingProducts.add(normCode);
+                            }
+                        }
+                    }
+                }
+
+                const n = v => (v === undefined || v === '') ? null : v;
+                await queryExecutor(`
+                    INSERT INTO ventas 
+                    (remision, fecha, cliente_nit, observaciones, iva, items, estado, direccion, ruta, placa) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (remision) DO UPDATE SET 
+                        fecha = excluded.fecha,
+                        cliente_nit = excluded.cliente_nit,
+                        observaciones = excluded.observaciones,
+                        iva = excluded.iva,
+                        items = excluded.items,
+                        estado = excluded.estado,
+                        direccion = excluded.direccion,
+                        ruta = excluded.ruta,
+                        placa = excluded.placa
+                `, [
+                    venta.remision,
+                    venta.fecha,
+                    venta.cliente_nit,
+                    n(venta.observaciones),
+                    venta.iva || 0,
+                    JSON.stringify(venta.items),
+                    venta.estado || 'Pendiente',
+                    n(venta._direccion || venta.direccion),
+                    n(venta._ruta || venta.ruta),
+                    n(venta._placa || venta.placa)
+                ]);
+                count++;
+            }
+            return { success: true, count };
+        };
+
+        if (isPostgres) {
+            const client = await pgPool.connect();
+            try {
+                await client.query('BEGIN');
+                const executor = async (sql, params = []) => {
+                    let index = 1;
+                    const pgSql = sql.replace(/\?/g, () => `$${index++}`);
+                    const res = await client.query(pgSql, params);
+                    return res.rows;
+                };
+                const result = await runBulkQueries(executor);
+                await client.query('COMMIT');
+                return result;
+            } catch (e) {
+                await client.query('ROLLBACK');
+                throw e;
+            } finally {
+                client.release();
+            }
+        } else {
+            sqliteDb.exec('BEGIN');
+            try {
+                const executor = async (sql, params = []) => {
+                    const stmt = sqliteDb.prepare(sql);
+                    const trimmedSql = sql.trim().toUpperCase();
+                    if (trimmedSql.startsWith('SELECT')) {
+                        return stmt.all(...params);
+                    } else {
+                        const res = stmt.run(...params);
+                        return { success: true, changes: res.changes, lastInsertRowid: res.lastInsertRowid };
+                    }
+                };
+                const result = await runBulkQueries(executor);
+                sqliteDb.exec('COMMIT');
+                return result;
+            } catch (e) {
+                sqliteDb.exec('ROLLBACK');
+                throw e;
+            }
+        }
     },
 
     // Consolidado Diario
